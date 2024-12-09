@@ -1,0 +1,30 @@
+{
+  "bilibili": {
+    "path_old": "E:/MyBilibili",
+    "path_new": "E:/MyTemp/Bilibili"
+  },
+  "packer": {
+    "path_old": "E:/MyWorkspace/Python/ProjectQt/src",
+    "path_new": "E:/MyWorkspace/Python/ProjectQt/release",
+    "path_res": "E:/MyWorkspace/Python/ProjectQt/assets",
+    "logo": {
+      "E:/MyWorkspace/Python/ProjectQt/src/bilibili.py": "E:/MyWorkspace/Python/ProjectQt/assets/bilibili/bilibili.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/calculator.py": "E:/MyWorkspace/Python/ProjectQt/assets/calculator/calculator.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/database.py": "E:/MyWorkspace/Python/ProjectQt/assets/database/database.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/differ.py": "E:/MyWorkspace/Python/ProjectQt/assets/differ/differ.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/game2048.py": "E:/MyWorkspace/Python/ProjectQt/assets/game2048/2048.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/json_formatter.py": "E:/MyWorkspace/Python/ProjectQt/assets/json_formatter/json.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/minesweeper.py": "E:/MyWorkspace/Python/ProjectQt/assets/minesweeper/minesweeper.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/packer.py": "E:/MyWorkspace/Python/ProjectQt/assets/packer/packer.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/recognizer.py": "E:/MyWorkspace/Python/ProjectQt/assets/recognizer/brain.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/renamer.py": "E:/MyWorkspace/Python/ProjectQt/assets/renamer/rename.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/toggle_case.py": "E:/MyWorkspace/Python/ProjectQt/assets/toggle_case/toggle_case.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/wallpaper_engine.py": "E:/MyWorkspace/Python/ProjectQt/assets/wallpaper_engine/wallpaper_engine.png",
+      "E:/MyWorkspace/Python/ProjectQt/src/wordle.py": "E:/MyWorkspace/Python/ProjectQt/assets/wordle/mosaic.png"
+    }
+  },
+  "wallpaper_engine": {
+    "path_old": "E:/MySoftwares/Steam/steamapps/workshop/content/431960",
+    "path_new": "E:/MyTemp/WallpaperEngine"
+  }
+}
