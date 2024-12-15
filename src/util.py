@@ -1,29 +1,17 @@
-from PyQt6.QtCore import QDir, QPoint, Qt, QUrl
+from PyQt6.QtCore import QDir, Qt, QUrl
 from PyQt6.QtGui import QAction, QDesktopServices, QIcon, QPixmap
 from PyQt6.QtWidgets import QComboBox, QFileDialog, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton
-from PyQt6.QtWidgets import QTableWidget, QTextBrowser, QTreeWidget, QTreeWidgetItem
-from typing import Any
+from PyQt6.QtWidgets import QTableWidget, QTreeWidget, QTreeWidgetItem
 import json
 import os
 import pickle
 import re
 import shutil
-import subprocess
 import sys
 
 DESKTOP = os.path.join(os.path.expanduser("~"), "Desktop").replace("\\", "/")
 RESOURCE = os.path.join(getattr(sys, "_MEIPASS", os.path.abspath("..")), "assets").replace("\\", "/")
 BANNED_CHAR = re.compile(r'[\\/*?:"<>|]')
-
-
-file_icons = {
-	".jpeg": "image",
-	".jpg": "image",
-	".m4s": "video",
-	".mp3": "audio",
-	".mp4": "video",
-	".png": "image",
-}
 
 
 def cast(obj):
@@ -34,46 +22,32 @@ def icon(path: str) -> QIcon:
 	return QIcon(QPixmap(os.path.join(RESOURCE, "global", f"{path}.png").replace("\\", "/")))
 
 
-def cmd(commands: str):
-	subprocess.run(commands, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
-def search(line_edit: QLineEdit, widget: QListWidget | QTableWidget, show_check=True, do_search=False):
+def search(line_edit: QLineEdit, widget: QTableWidget):
 	def _func():
 		keyword = line_edit.text().strip()
-		if isinstance(widget, QListWidget):
-			for i in range(widget.count()):
-				widget.item(i).setHidden(keyword not in widget.item(i).text())
-				if show_check:
-					widget.item(i).setCheckState(Qt.CheckState.Unchecked)
-		elif isinstance(widget, QTableWidget):
-			widget.setUpdatesEnabled(False)
-			for r in reversed(range(widget.rowCount())):
-				if not keyword:
-					widget.setRowHidden(r, False)
-					continue
+		widget.setUpdatesEnabled(False)
+		for r in reversed(range(widget.rowCount())):
+			if not keyword:
+				widget.setRowHidden(r, False)
+				continue
 
-				hidden = True
-				for c in range(widget.columnCount()):
-					text, table_item, table_widget = "", widget.item(r, c), widget.cellWidget(r, c)
-					if table_item:
-						text = table_item.text()
-					elif table_widget and isinstance(table_widget, QLineEdit):
-						text = table_widget.text()
-					elif table_widget and isinstance(table_widget, QComboBox):
-						text = table_widget.currentText()
-					if keyword in text:
-						hidden = False
-						break
-				widget.setRowHidden(r, hidden)
-			widget.setUpdatesEnabled(True)
-			widget.update()
+			hidden = True
+			for c in range(widget.columnCount()):
+				text, table_item, table_widget = "", widget.item(r, c), widget.cellWidget(r, c)
+				if table_item:
+					text = table_item.text()
+				elif table_widget and isinstance(table_widget, QLineEdit):
+					text = table_widget.text()
+				elif table_widget and isinstance(table_widget, QComboBox):
+					text = table_widget.currentText()
+				if keyword in text:
+					hidden = False
+					break
+			widget.setRowHidden(r, hidden)
+		widget.setUpdatesEnabled(True)
+		widget.update()
 
-	if do_search:
-		_func()
-	else:
-		add_action(line_edit, "clear", "清空", line_edit.clear)
-		cast(line_edit).textChanged.connect(_func)
+	cast(line_edit).textChanged.connect(_func)
 
 
 def dialog(msg: str, msg_type: str) -> bool | None:
@@ -94,21 +68,12 @@ def button(push_button: QPushButton, func: callable, ico: str = None, tip: str =
 	push_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
 
-def add_action(widget: Any, ico: str, text: str, func: callable, at_end=True):
-	if isinstance(widget, QMenu):
-		action = QAction(text, widget)
-		widget.addAction(action)
-	else:
-		action = QAction(widget)
-		action.setToolTip(text)
+def add_action(line_edit: QLineEdit, ico: str, text: str, func: callable, position: QLineEdit.ActionPosition = QLineEdit.ActionPosition.TrailingPosition):
+	action = QAction(line_edit)
 	action.setIcon(icon(ico))
+	action.setToolTip(text)
 	cast(action).triggered.connect(func)
-
-	if isinstance(widget, QLineEdit):
-		if at_end:
-			widget.addAction(action, QLineEdit.ActionPosition.TrailingPosition)
-		else:
-			widget.addAction(action, QLineEdit.ActionPosition.LeadingPosition)
+	line_edit.addAction(action, position)
 
 
 def select_folder(line_edit: QLineEdit, push_button: QPushButton, func: callable, clean=False, clear=False):
@@ -123,34 +88,16 @@ def select_folder(line_edit: QLineEdit, push_button: QPushButton, func: callable
 		folder_path = line_edit.text()
 		if not os.path.exists(folder_path):
 			return
-		if not os.listdir(folder_path):
-			return dialog(f"路径[{folder_path}]下没有可清理文件!", "error")
 		if dialog(f"确认清理路径[{folder_path}]下所有文件?", "warning"):
 			shutil.rmtree(folder_path)
 			os.mkdir(folder_path)
 			dialog("清理完成!", "success")
 		func() if func else None
 
-	add_action(line_edit, "open_folder", "打开文件夹", lambda: FileIO.open_folder(line_edit.text()))
+	add_action(line_edit, "open_folder", "打开文件夹", lambda: open_folder(line_edit.text()))
 	add_action(line_edit, "clean", "清理文件", _clean) if clean else None
 	add_action(line_edit, "clear", "清空", line_edit.clear) if clear else None
 	button(push_button, _select, "folder") if push_button else None
-	line_edit.setReadOnly(True)
-	line_edit.setToolTip(line_edit.placeholderText())
-
-
-def select_file(line_edit: QLineEdit, push_button: QPushButton, flt: list, func=None, select=False):
-	def _select():
-		f = ";".join([f"{f} (*.{f})" for f in flt])
-		file_path = QFileDialog.getOpenFileName(directory=os.path.dirname(line_edit.text()), filter=f)[0]
-		if not file_path:
-			return
-		line_edit.setText(file_path)
-		func() if func else None
-
-	add_action(line_edit, "open_folder", "打开文件夹", lambda: FileIO.open_folder(line_edit.text()))
-	add_action(line_edit, "select_file", "选择文件", _select) if select else None
-	button(push_button, _select, "file") if push_button else None
 	line_edit.setReadOnly(True)
 	line_edit.setToolTip(line_edit.placeholderText())
 
@@ -166,17 +113,23 @@ def pwd(line_edit: QLineEdit):
 			line_edit.setReadOnly(False)
 			line_edit.actions()[0].setIcon(icon("show"))
 
-	add_action(line_edit, "hide", "密码", _func, at_end=False)
+	add_action(line_edit, "hide", "密码", _func, position=QLineEdit.ActionPosition.LeadingPosition)
 	line_edit.setEchoMode(QLineEdit.EchoMode.Password)
 	line_edit.setReadOnly(True)
 
 
+def open_folder(folder_path: str):
+	if os.path.isfile(folder_path):
+		folder_path = os.path.dirname(folder_path)
+	if not os.path.exists(folder_path):
+		return
+	QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
+
+
 class FileIO:
 	@staticmethod
-	def read(file_path):
+	def read(file_path: str, encoding = "utf-8"):
 		file_type = os.path.splitext(file_path)[1]
-		encoding = "utf-8"
-
 		if file_type == ".pkl":
 			with open(file_path, mode="rb") as file:
 				return pickle.load(file)
@@ -188,10 +141,8 @@ class FileIO:
 				return file.read()
 
 	@staticmethod
-	def write(file_path, datas):
+	def write(file_path: str, datas, encoding = "utf-8"):
 		file_type = os.path.splitext(file_path)[1]
-		encoding = "utf-8"
-
 		if file_type == ".pkl":
 			with open(file_path, mode="wb") as file:
 				pickle.dump(datas, file)
@@ -202,25 +153,10 @@ class FileIO:
 			with open(file_path, mode="w", encoding=encoding) as file:
 				file.write(datas)
 
-	@staticmethod
-	def open_folder(folder_path):
-		if not os.path.exists(folder_path):
-			return
-		if os.path.isfile(folder_path):
-			folder_path = os.path.dirname(folder_path)
-		QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
-
-	@staticmethod
-	def open_file(file_path):
-		if not os.path.exists(file_path):
-			return
-		if os.path.isfile(file_path):
-			QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
-
 
 class Tree:
 	@staticmethod
-	def scan(tree_widget: QTreeWidget, folder_path: str) -> None:
+	def scan(tree_widget: QTreeWidget, folder_path: str, check=False):
 		def _func(path_parent, parent):
 			entry = QDir(path_parent).entryList(QDir.Filter.Dirs | QDir.Filter.Files | QDir.Filter.NoDotAndDotDot)
 			entry.sort(key=lambda x: tuple(reversed(os.path.splitext(x))))
@@ -230,37 +166,47 @@ class Tree:
 				if os.path.isdir(path_child):
 					ico = "folder"
 				else:
-					file_type = os.path.splitext(path_child)[1].lower()
-					ico = file_icons.get(file_type, "file")
+					ico = file_icons.get(os.path.splitext(path_child)[1].lower(), "file")
 
 				child = QTreeWidgetItem([name])
 				child.setText(0, name)
 				child.setIcon(0, icon(ico))
 				child.setToolTip(0, path_child)
+				child.setCheckState(0, Qt.CheckState.Unchecked) if check else None
 				parent.addChild(child) if parent else tree_widget.addTopLevelItem(child)
 				_func(path_child, child) if ico == "folder" else None
 
+		file_icons = {
+			".mp4": "video", ".m4s": "video", ".mp3": "audio",
+			".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
+		}
 		tree_widget.clear()
 		if os.path.exists(folder_path):
 			_func(folder_path, None)
 
 	@staticmethod
-	def sync_check(tree_widget: QTreeWidget) -> None:
+	def select(tree_widget: QTreeWidget):
 		def _func(item):
 			cast(tree_widget).itemChanged.disconnect(_func)
-			if item.data(0, Qt.ItemDataRole.UserRole):
-				for i in range(item.childCount()):
-					item.child(i).setCheckState(0, item.checkState(0))
-			else:
-				parent = item.parent()
-				if parent:
-					count = sum([parent.child(i).checkState(0) == Qt.CheckState.Checked for i in range(parent.childCount())])
-					if count == 0:
-						parent.setCheckState(0, Qt.CheckState.Unchecked)
-					elif count == parent.childCount():
-						parent.setCheckState(0, Qt.CheckState.Checked)
-					else:
-						parent.setCheckState(0, Qt.CheckState.PartiallyChecked)
+
+			leaves = [item]
+			while leaves:
+				leaf = leaves.pop(0)
+				leaf.setCheckState(0, item.checkState(0))
+				for i in range(leaf.childCount()):
+					leaves.append(leaf.child(i))
+
+			root = item.parent()
+			while root:
+				count = sum(root.child(i).checkState(0) != Qt.CheckState.Unchecked for i in range(root.childCount()))
+				if count == root.childCount():
+					root.setCheckState(0, Qt.CheckState.Checked)
+				elif not count:
+					root.setCheckState(0, Qt.CheckState.Unchecked)
+				else:
+					root.setCheckState(0, Qt.CheckState.PartiallyChecked)
+				root = root.parent()
+
 			cast(tree_widget.itemChanged).connect(_func)
 
 		cast(tree_widget.itemChanged).connect(_func)
@@ -268,42 +214,31 @@ class Tree:
 
 class Menu:
 	@staticmethod
-	def menu(self: Any, widget: QListWidget | QTreeWidget, func: callable) -> None:
+	def menu(widget, select: bool = False, folder: bool = False, func: callable = None):
 		def _func(point):
-			self.qu_menu.clear()
-			func(widget, point, self.qu_menu)
-			self.qu_menu.exec(widget.viewport().mapToGlobal(point))
+			widget.setProperty("menu", QMenu(widget))
+			item = widget.itemAt(point)
+			if not item:
+				return
+			widget.setCurrentItem(item)
+
+			if select:
+				Menu.add(widget.property("menu"), "select_all", "全选", lambda: Menu.select_all(widget))
+				Menu.add(widget.property("menu"), "unselect_all", "取消全选", lambda: Menu.unselect_all(widget))
+			if open_folder:
+				if isinstance(widget, QTreeWidget) and widget.currentItem().toolTip(0):
+					Menu.add(widget.property("menu"), "export", "打开文件夹", lambda: open_folder(item.toolTip(0)))
+				elif isinstance(widget, QListWidget) and widget.currentItem().toolTip():
+					Menu.add(widget.property("menu"), "export", "打开文件夹", lambda: open_folder(item.toolTip()))
+
+			func(widget, point) if func else None
+			widget.property("menu").exec(widget.viewport().mapToGlobal(point))
 
 		widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-		cast(widget).customContextMenuRequested.connect(lambda point: _func(point))
-		self.qu_menu = QMenu(widget)
+		cast(widget).customContextMenuRequested.connect(_func)
 
 	@staticmethod
-	def add_menu(widget: QTreeWidget | QListWidget, point: QPoint, qu_menu: QMenu, name, ico, func, rely=True, effective=True):
-		if not effective:
-			return
-		item = widget.itemAt(point)
-		if rely and not item:
-			return
-		add_action(qu_menu, ico, name, func)
-		widget.setCurrentItem(item) if rely and item else None
-
-	@staticmethod
-	def open_folder(widget: QTreeWidget | QListWidget) -> Any:
-		if isinstance(widget, QTreeWidget):
-			FileIO.open_folder(widget.currentItem().toolTip(0))
-		elif isinstance(widget, QListWidget):
-			FileIO.open_folder(widget.currentItem().toolTip())
-
-	@staticmethod
-	def open_file(widget: QTreeWidget | QListWidget) -> Any:
-		if isinstance(widget, QTreeWidget):
-			FileIO.open_file(widget.currentItem().toolTip(0))
-		elif isinstance(widget, QListWidget):
-			FileIO.open_file(widget.currentItem().toolTip())
-
-	@staticmethod
-	def select_all(widget: QTreeWidget | QListWidget) -> Any:
+	def select_all(widget: QTreeWidget | QListWidget):
 		if isinstance(widget, QTreeWidget):
 			for i in range(widget.topLevelItemCount()):
 				widget.topLevelItem(i).setCheckState(0, Qt.CheckState.Checked)
@@ -312,7 +247,7 @@ class Menu:
 				widget.item(i).setCheckState(Qt.CheckState.Checked)
 
 	@staticmethod
-	def unselect_all(widget: QTreeWidget | QListWidget) -> Any:
+	def unselect_all(widget: QTreeWidget | QListWidget):
 		if isinstance(widget, QTreeWidget):
 			for i in range(widget.topLevelItemCount()):
 				widget.topLevelItem(i).setCheckState(0, Qt.CheckState.Unchecked)
@@ -320,14 +255,29 @@ class Menu:
 			for i in range(widget.count()):
 				widget.item(i).setCheckState(Qt.CheckState.Unchecked)
 
+	@staticmethod
+	def open_folder(widget: QTreeWidget | QListWidget):
+		if isinstance(widget, QTreeWidget):
+			open_folder(widget.currentItem().toolTip(0))
+		elif isinstance(widget, QListWidget):
+			open_folder(widget.currentItem().toolTip())
+
+	@staticmethod
+	def add(widget, ico: str, text: str, func: callable):
+		action = QAction(text, widget)
+		action.setIcon(icon(ico))
+		cast(action).triggered.connect(func)
+		widget.addAction(action)
+
 
 class Sync:
 	@staticmethod
-	def scroll(self: Any, widget_old: QListWidget | QTextBrowser, widget_new: QListWidget | QTextBrowser) -> None:
-		def _func():
+	def scroll(self, widget_old, widget_new):
+		def _func(value):
 			widget = self.sender()
-			value = widget.value()
+			cast(widgets[widget]).valueChanged.disconnect(_func)
 			widgets[widget].setValue(value)
+			cast(widgets[widget]).valueChanged.connect(_func)
 
 		vbar_old, hbar_old = widget_old.verticalScrollBar(), widget_old.horizontalScrollBar()
 		vbar_new, hbar_new = widget_new.verticalScrollBar(), widget_new.horizontalScrollBar()
@@ -338,8 +288,9 @@ class Sync:
 		cast(hbar_old).valueChanged.connect(_func)
 		cast(hbar_new).valueChanged.connect(_func)
 
+
 	@staticmethod
-	def select(self: Any, widget_old: QListWidget, widget_new: QListWidget) -> None:
+	def select(self, widget_old: QListWidget, widget_new: QListWidget):
 		def _func():
 			widget = self.sender()
 			widgets[widget].setCurrentRow(widget.currentRow())
