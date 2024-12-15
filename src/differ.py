@@ -31,12 +31,18 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		util.Sync.scroll(self, self.plainTextEdit_old, self.plainTextEdit_new)
 		util.Sync.scroll(self, self.textBrowser_old, self.textBrowser_new)
 
-		self.plainTextEdit_old.setFocus()
 		self.textBrowser_old.hide()
 		self.textBrowser_new.hide()
 		self.statusbar.showMessage("按 F4 比对")
 
-	def compare(self):
+	def keyPressEvent(self, event):
+		if event.key() != Qt.Key.Key_F4:
+			return
+		for widget in (self.plainTextEdit_old, self.plainTextEdit_new, self.textBrowser_old, self.textBrowser_new):
+			widget.setVisible(not widget.isVisible())
+		if self.plainTextEdit_old.isVisible():
+			return self.plainTextEdit_old.setFocus()
+
 		text_old = self.plainTextEdit_old.toPlainText()
 		text_new = self.plainTextEdit_new.toPlainText()
 
@@ -70,23 +76,6 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		self.textBrowser_old.setHtml("\n".join(html_old))
 		self.textBrowser_new.setHtml("\n".join(html_new))
-
-	def keyPressEvent(self, event):
-		if event.key() != Qt.Key.Key_F4:
-			return
-
-		if self.textBrowser_old.isHidden() and self.textBrowser_new.isHidden():
-			self.compare()
-			self.plainTextEdit_old.hide()
-			self.plainTextEdit_new.hide()
-			self.textBrowser_old.show()
-			self.textBrowser_new.show()
-		else:
-			self.plainTextEdit_old.setFocus()
-			self.plainTextEdit_old.show()
-			self.plainTextEdit_new.show()
-			self.textBrowser_old.hide()
-			self.textBrowser_new.hide()
 
 
 if __name__ == "__main__":
