@@ -23,14 +23,21 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_pack, self.pack, "save")
 		self.radioButton_exe.clicked.connect(self.command)
 		self.radioButton_ui.clicked.connect(self.command)
+		self.checkBox.clicked.connect(self.command)
 		self.comboBox.currentTextChanged.connect(self.command)
 
 		if os.path.exists("config.json"):
 			config = util.FileIO.read("config.json")["packer"]
+		elif os.path.exists("../config.json"):
+			config = util.FileIO.read("../config.json")["packer"]
+		else:
+			config = None
+		if config:
 			self.lineEdit_old.setText(config["path_old"]) if os.path.exists(config["path_old"]) else None
 			self.lineEdit_new.setText(config["path_new"]) if os.path.exists(config["path_new"]) else None
 			self.lineEdit_res.setText(config["path_res"]) if os.path.exists(config["path_res"]) else None
 			self.logos = config["logo"]
+
 		self.scan()
 
 	def command(self):
@@ -49,6 +56,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		if not os.path.exists(file_path):
 			return self.plainTextEdit_cmd.clear()
 
+		path_cache = os.path.join(path_new, "cache").replace("\\", "/")
 		path_icon = os.path.join(path_res, self.logos.get(file_path, "*")).replace("\\", "/")
 		path_global = os.path.join(path_res, "global").replace("\\", "/")
 		path_extra = os.path.join(path_res, file_name).replace("\\", "/")
@@ -56,10 +64,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		if self.radioButton_exe.isChecked():
 			self.plainTextEdit_cmd.setPlainText(
 				f'{path_old[0]}: & cd "{path_old}" &'
-				f'\npyinstaller -w -F "{file_path}"'
+				f'\npyinstaller -w "{file_path}"'
+				+ (" -F" if self.checkBox.isChecked() else "") +
 				f'\n--distpath "{path_new}"'
-				f'\n--specpath "{path_new}"'
-				f'\n--workpath "{path_new}"'
+				f'\n--specpath "{path_cache}"'
+				f'\n--workpath "{path_cache}"'
 			)
 			if os.path.exists(path_icon):
 				self.plainTextEdit_cmd.appendPlainText(f'--icon="{path_icon}"')
@@ -95,9 +104,9 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 
 class QtThread(QThread):
-	signal_starts = pyqtSignal(str)
+	signal_starts = pyqtSignal()
 	signal_update = pyqtSignal(str)
-	signal_finish = pyqtSignal(int)
+	signal_finish = pyqtSignal(bool)
 
 	def __init__(self):
 		super().__init__()
@@ -109,14 +118,15 @@ class QtThread(QThread):
 		qt_core.command()
 		cmd = qt_core.plainTextEdit_cmd.toPlainText().replace("\n", " ")
 
-		util.cast(self.signal_starts).emit(cmd)
+		util.cast(self.signal_starts).emit()
 		with subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as sp:
+			util.cast(self.signal_update).emit(f"> {cmd}")
 			for feedback in sp.stdout:
-				util.cast(self.signal_update).emit(feedback)
-		util.cast(self.signal_finish).emit(sp.wait())
+				util.cast(self.signal_update).emit(feedback.strip())
+		util.cast(self.signal_finish).emit(int(not sp.wait()))
 
 	@staticmethod
-	def starts(cmd):
+	def starts():
 		qt_core.pushButton_pack.setEnabled(False)
 		qt_core.pushButton_pack.setText("打包中")
 		qt_core.pushButton_pack.setIcon(util.icon("loading"))
@@ -124,28 +134,31 @@ class QtThread(QThread):
 		palette = qt_core.plainTextEdit_feedback.palette()
 		palette.setColor(QPalette.ColorRole.Text, QColor("white"))
 		qt_core.plainTextEdit_feedback.setPalette(palette)
-
 		qt_core.plainTextEdit_feedback.clear()
-		qt_core.plainTextEdit_feedback.appendPlainText(f"> {cmd}")
+
+		path_cache = os.path.join(qt_core.lineEdit_new.text(), "cache").replace("\\", "/")
+		if not os.path.exists(path_cache):
+			os.mkdir(path_cache)
 
 	@staticmethod
 	def update(feedback):
-		qt_core.plainTextEdit_feedback.appendPlainText(feedback.strip())
+		qt_core.plainTextEdit_feedback.appendPlainText(feedback)
 		qt_core.plainTextEdit_feedback.verticalScrollBar().setValue(qt_core.plainTextEdit_feedback.verticalScrollBar().maximum())
 
-	@staticmethod
-	def finish(status):
+	def finish(self, success):
 		qt_core.pushButton_pack.setEnabled(True)
 		qt_core.pushButton_pack.setText("打包")
 		qt_core.pushButton_pack.setIcon(util.icon("save"))
 
-		if status:
+		if success:
+			util.dialog("打包成功!", "success")
+		else:
 			palette = qt_core.plainTextEdit_feedback.palette()
 			palette.setColor(QPalette.ColorRole.Text, QColor("red"))
 			qt_core.plainTextEdit_feedback.setPalette(palette)
 			util.dialog("打包失败!", "error")
-		else:
-			util.dialog("打包完成!", "success")
+
+		self.quit()
 
 
 if __name__ == "__main__":
