@@ -1,7 +1,6 @@
 from wordle_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow
-from collections import defaultdict
 from functools import partial
 from itertools import chain
 import os
@@ -32,8 +31,8 @@ QSS_BUTTON = {
 KEY = {getattr(Qt.Key, f"Key_{chr(i)}"): chr(i) for i in range(65, 91)}
 KEY.update({Qt.Key.Key_Return: "ENTER", Qt.Key.Key_Backspace: "DELETE"})
 
-ALLOWED_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/allowed_words.txt")).splitlines()
-POSSIBLE_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/possible_words.txt")).splitlines()
+ALLOWED_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/allowed_words.txt").replace("\\", "/")).splitlines()
+POSSIBLE_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/possible_words.txt").replace("\\", "/")).splitlines()
 ROW_COUNT, COL_COUNT = 6, 5
 
 
@@ -48,8 +47,8 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(COL_COUNT)] for i in range(ROW_COUNT)]
 		self.BUTTON = {chr(i): getattr(self, f"pushButton_{chr(i + 32)}") for i in range(65, 91)}
 		self.BUTTON.update({"ENTER": self.pushButton_enter, "DELETE": self.pushButton_delete})
-		for name, button in self.BUTTON.items():
-			util.button(button, partial(self.compute, key=name))
+		for key, button in self.BUTTON.items():
+			util.button(button, partial(self.compute, key=key))
 
 		util.button(self.toolButton, self.restart, "../wordle/restart")
 		self.restart()
@@ -75,18 +74,18 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			if guess not in ALLOWED_WORDS:
 				return self.label_message.setText("Word not found")
 
-			state = ["2" if g == self.answer[i] else str(int(g in self.answer)) for i, g in enumerate(guess)]
-			stas = defaultdict(set)
+			states = self.check(guess)
+			amounts = {}
 
 			for i, label in enumerate(self.LABEL[self.round]):
-				label.setStyleSheet(QSS_LABEL[state[i]])
-				stas[label.text()].add(state[i])
-			for letter, sta in stas.items():
-				sta = list(sta)[0] if len(sta) == 1 else "1"
-				self.BUTTON[letter].setStyleSheet(QSS_BUTTON[sta])
+				label.setStyleSheet(QSS_LABEL[states[i]])
+				amounts.setdefault(label.text(), set()).add(states[i])
+			for letter, amount in amounts.items():
+				state = list(amount)[0] if len(amount) == 1 else "1"
+				self.BUTTON[letter].setStyleSheet(QSS_BUTTON[state])
 			self.round += 1
 
-			if state == ["2"] * COL_COUNT:
+			if states == ["2"] * COL_COUNT:
 				return self.label_message.setText("You won")
 			if self.round >= ROW_COUNT:
 				return self.label_message.setText("You lose! The answer is " + self.answer.upper())
@@ -99,6 +98,26 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			self.guesses[self.round] = guess + key.lower()
 			self.LABEL[self.round][len(guess)].setText(key)
 			self.LABEL[self.round][len(guess)].setStyleSheet(QSS_LABEL["with_text"])
+
+	def check(self, guess):
+		state = [""] * 5
+		amount = {a: self.answer.count(a) for a in set(self.answer)}
+
+		for i, g in enumerate(guess):
+			if g == self.answer[i]:
+				state[i] = "2"
+				amount[g] -= 1
+			elif g not in self.answer:
+				state[i] = "0"
+
+		for i, s in enumerate(state):
+			if not s:
+				if amount[guess[i]]:
+					state[i] = "1"
+					amount[guess[i]] -= 1
+				else:
+					state[i] = "0"
+		return state
 
 	def keyPressEvent(self, event):
 		if event.key() in KEY:
