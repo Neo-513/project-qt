@@ -3,7 +3,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import partial
 from itertools import chain
-import os
 import random
 import sys
 import util
@@ -31,8 +30,8 @@ QSS_BUTTON = {
 KEY = {getattr(Qt.Key, f"Key_{chr(i)}"): chr(i) for i in range(65, 91)}
 KEY.update({Qt.Key.Key_Return: "ENTER", Qt.Key.Key_Backspace: "DELETE"})
 
-ALLOWED_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/allowed_words.txt").replace("\\", "/")).splitlines()
-POSSIBLE_WORDS = util.FileIO.read(os.path.join(util.RESOURCE, "wordle/possible_words.txt").replace("\\", "/")).splitlines()
+ALLOWED_WORDS = util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "allowed_words.txt")).splitlines()
+POSSIBLE_WORDS = util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "possible_words.txt")).splitlines()
 ROW_COUNT, COL_COUNT = 6, 5
 
 
