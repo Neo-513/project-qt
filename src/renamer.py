@@ -31,8 +31,8 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		for i in range(self.listWidget_old.count()):
 			name_old = self.listWidget_old.item(i).text()
 			name_new = self.listWidget_new.item(i).text()
-			path_old = os.path.join(folder_path, name_old).replace("\\", "/")
-			path_new = os.path.join(folder_path, name_new).replace("\\", "/")
+			path_old = util.join_path(folder_path, name_old)
+			path_new = util.join_path(folder_path, name_new)
 
 			if os.path.exists(path_new) and name_old != name_new:
 				return util.dialog(f"新文件名[{name_new}]本地已存在!", "error")
