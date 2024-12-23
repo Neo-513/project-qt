@@ -7,22 +7,12 @@ import random
 import sys
 import util
 
-QSS = (
-	"font-size: 40px;"
-	"font-weight: bold;"
-	"background-color: %s;"
-	"color: rgb(118,110,101);"
-)
+ROTATE = {Qt.Key.Key_Up: 1, Qt.Key.Key_Down: -1, Qt.Key.Key_Left: 0, Qt.Key.Key_Right: 2}
+QSS = "font-size: 40px; font-weight: bold; color: rgb(118,110,101); background-color: %s"
 COLOR = {
 	0: "rgb(205,193,180)", 2: "rgb(238,228,218)", 4: "rgb(237,224,200)", 8: "rgb(242,177,121)",
 	16: "rgb(245,149,99)", 32: "rgb(246,124,95)", 64: "rgb(246,94,59)", 128: "rgb(237,207,114)",
 	256: "rgb(237,204,97)", 512: "rgb(228,192,42)", 1024: "rgb(226,186,19)", 2048: "rgb(236,196,0)"
-}
-ROTATE = {
-	Qt.Key.Key_Up: 1,
-	Qt.Key.Key_Down: -1,
-	Qt.Key.Key_Left: 0,
-	Qt.Key.Key_Right: 2
 }
 
 
@@ -34,7 +24,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../game2048/2048"))
 
-		self.statusbar.showMessage("按 ↑ ↓ ← → 操作, 按 Enter 重新开始")
+		self.statusbar.showMessage("按 Enter 重新开始")
 		self.restart()
 
 	def restart(self):
