@@ -1,7 +1,6 @@
 from renamer_ui import Ui_MainWindow
 from PyQt6.QtCore import QDir
-from PyQt6.QtGui import QBrush, QColor
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLineEdit, QListWidgetItem
+from PyQt6.QtWidgets import QApplication, QMainWindow
 import os
 import sys
 import util
@@ -17,8 +16,6 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_rename, self.rename, "edit")
 		util.Sync.scroll(self, self.listWidget_old, self.listWidget_new)
 		util.Sync.select(self, self.listWidget_old, self.listWidget_new)
-		util.add_action(self.lineEdit_old, "clear", "清空", self.lineEdit_old.clear)
-		util.add_action(self.lineEdit_new, "clear", "清空", self.lineEdit_new.clear)
 		self.lineEdit_old.textChanged.connect(self.replace)
 		self.lineEdit_new.textChanged.connect(self.replace)
 		self.listWidget_old.itemDoubleClicked.connect(self.copy)
