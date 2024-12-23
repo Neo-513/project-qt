@@ -27,11 +27,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.plainTextEdit.textChanged.connect(self.calculation)
 
 	def calculation(self):
-		try:
-			equation = self.plainTextEdit.toPlainText().strip()
-			if not equation:
-				raise Exception
+		equation = self.plainTextEdit.toPlainText().strip()
+		if not equation:
+			return self.statusbar.clearMessage()
 
+		try:
 			equation = f"({equation})"
 			for k, v in REPLACEMENT.items():
 				equation = equation.replace(k, v)
@@ -48,7 +48,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 					stack.append(element)
 
 			if len(stack) != 1:
-				raise Exception
+				return self.statusbar.clearMessage()
 			self.statusbar.showMessage(f"计算结果: {str(float(stack[0])).rstrip('0').rstrip('.')}")
 		except:
 			self.statusbar.clearMessage()
