@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QDir, Qt, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices, QIcon, QPixmap
-from PyQt6.QtWidgets import QComboBox, QFileDialog, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton
-from PyQt6.QtWidgets import QTableWidget, QTreeWidget, QTreeWidgetItem
+from PyQt6.QtGui import QAction, QDesktopServices, QIcon
+from PyQt6.QtWidgets import QFileDialog, QLineEdit, QListWidget, QMenu, QMessageBox, QPushButton
+from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem
 import json
 import os
 import pickle
@@ -18,36 +18,12 @@ def cast(obj):
 	return obj
 
 
+def join_path(*paths):
+	return os.path.join("", *paths).replace("\\", "/")
+
+
 def icon(path: str) -> QIcon:
-	return QIcon(QPixmap(os.path.join(RESOURCE, "global", f"{path}.png").replace("\\", "/")))
-
-
-def search(line_edit: QLineEdit, widget: QTableWidget):
-	def _func():
-		keyword = line_edit.text().strip()
-		widget.setUpdatesEnabled(False)
-		for r in reversed(range(widget.rowCount())):
-			if not keyword:
-				widget.setRowHidden(r, False)
-				continue
-
-			hidden = True
-			for c in range(widget.columnCount()):
-				text, table_item, table_widget = "", widget.item(r, c), widget.cellWidget(r, c)
-				if table_item:
-					text = table_item.text()
-				elif table_widget and isinstance(table_widget, QLineEdit):
-					text = table_widget.text()
-				elif table_widget and isinstance(table_widget, QComboBox):
-					text = table_widget.currentText()
-				if keyword in text:
-					hidden = False
-					break
-			widget.setRowHidden(r, hidden)
-		widget.setUpdatesEnabled(True)
-		widget.update()
-
-	cast(line_edit).textChanged.connect(_func)
+	return QIcon(join_path(RESOURCE, "global", f"{path}.png"))
 
 
 def dialog(msg: str, msg_type: str) -> bool | None:
@@ -76,7 +52,7 @@ def add_action(line_edit: QLineEdit, ico: str, text: str, func: callable, positi
 	line_edit.addAction(action, position)
 
 
-def select_folder(line_edit: QLineEdit, push_button: QPushButton, func: callable, clean=False, clear=False):
+def select_folder(line_edit: QLineEdit, push_button: QPushButton, func: callable, clean=False):
 	def _select():
 		folder_path = QFileDialog.getExistingDirectory(directory=line_edit.text())
 		if not os.path.exists(folder_path):
@@ -96,7 +72,6 @@ def select_folder(line_edit: QLineEdit, push_button: QPushButton, func: callable
 
 	add_action(line_edit, "open_folder", "打开文件夹", lambda: open_folder(line_edit.text()))
 	add_action(line_edit, "clean", "清理文件", _clean) if clean else None
-	add_action(line_edit, "clear", "清空", line_edit.clear) if clear else None
 	button(push_button, _select, "folder") if push_button else None
 	line_edit.setReadOnly(True)
 	line_edit.setToolTip(line_edit.placeholderText())
@@ -128,7 +103,7 @@ def open_folder(folder_path: str):
 
 class FileIO:
 	@staticmethod
-	def read(file_path: str, encoding = "utf-8"):
+	def read(file_path, encoding = "utf-8"):
 		file_type = os.path.splitext(file_path)[1]
 		if file_type == ".pkl":
 			with open(file_path, mode="rb") as file:
@@ -141,14 +116,14 @@ class FileIO:
 				return file.read()
 
 	@staticmethod
-	def write(file_path: str, datas, encoding = "utf-8"):
+	def write(file_path, datas, encoding = "utf-8"):
 		file_type = os.path.splitext(file_path)[1]
 		if file_type == ".pkl":
 			with open(file_path, mode="wb") as file:
-				pickle.dump(datas, file)
+				pickle.dump(datas, cast(file))
 		elif file_type == ".json":
 			with open(file_path, mode="w", encoding=encoding) as file:
-				json.dump(datas, file)
+				json.dump(datas, cast(file))
 		else:
 			with open(file_path, mode="w", encoding=encoding) as file:
 				file.write(datas)
@@ -162,7 +137,7 @@ class Tree:
 			entry.sort(key=lambda x: tuple(reversed(os.path.splitext(x))))
 
 			for name in entry:
-				path_child = os.path.join(path_parent, name).replace("\\", "/")
+				path_child = join_path(path_parent, name)
 				if os.path.isdir(path_child):
 					ico = "folder"
 				else:
@@ -182,7 +157,7 @@ class Tree:
 		}
 		tree_widget.clear()
 		if os.path.exists(folder_path):
-			_func(folder_path, None)
+			_func(folder_path, cast(None))
 
 	@staticmethod
 	def select(tree_widget: QTreeWidget):
@@ -225,7 +200,7 @@ class Menu:
 			if select:
 				Menu.add(widget.property("menu"), "select_all", "全选", lambda: Menu.select_all(widget))
 				Menu.add(widget.property("menu"), "unselect_all", "取消全选", lambda: Menu.unselect_all(widget))
-			if open_folder:
+			if folder:
 				if isinstance(widget, QTreeWidget) and widget.currentItem().toolTip(0):
 					Menu.add(widget.property("menu"), "export", "打开文件夹", lambda: open_folder(item.toolTip(0)))
 				elif isinstance(widget, QListWidget) and widget.currentItem().toolTip():
