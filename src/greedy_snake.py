@@ -1,6 +1,6 @@
 from greedy_snake_ui import Ui_MainWindow
-from PyQt6.QtCore import QTimer, Qt, QRect, QSize
-from PyQt6.QtGui import QBrush, QPainter, QPixmap
+from PyQt6.QtCore import QTimer, Qt, QRect
+from PyQt6.QtGui import QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from itertools import product
 import random
@@ -9,7 +9,7 @@ import util
 
 ROW_COUNT, COL_COUNT, BLOCK_SIZE = 30, 30, 20
 FIELD_WIDTH, FIELD_HEIGHT = COL_COUNT * BLOCK_SIZE, ROW_COUNT * BLOCK_SIZE
-KEY = {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0), Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}
+DIRECTION = {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0), Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}
 
 
 class QtCore(QMainWindow, Ui_MainWindow):
@@ -25,7 +25,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.setWindowIcon(util.icon("../greedy_snake/snake"))
 
 		util.cast(self.TIMER).timeout.connect(self.timeout)
-		self.label.setPixmap(QPixmap(QSize(FIELD_WIDTH, FIELD_HEIGHT)))
+		self.label.setPixmap(QPixmap(FIELD_WIDTH, FIELD_HEIGHT))
 		self.draw([], redraw=True)
 		self.restart()
 
@@ -33,7 +33,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		pos_x = ROW_COUNT // 2
 		pos_y = COL_COUNT // 2
 
-		self.direction = random.choice(list(KEY.values()))
+		self.direction = random.choice(list(DIRECTION.values()))
 		self.snake = [(pos_x + i * self.direction[0], pos_y + i * self.direction[1]) for i in range(3)]
 		self.score = 0
 
@@ -78,10 +78,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 	def keyPressEvent(self, a0):
 		if not self.TIMER.isActive():
 			return
-		if a0.key() not in KEY:
+
+		direct = DIRECTION.get(util.cast(a0.key()), None)
+		if not direct:
 			return
 
-		direct = KEY[a0.key()]
 		if self.direction[0] != direct[0] and self.direction[1] != direct[1]:
 			self.direction = direct
 			self.timeout()
@@ -95,7 +96,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		painter.setPen(Qt.PenStyle.NoPen)
 		for block in blocks:
 			pos, color = block
-			painter.setBrush(QBrush(color))
+			painter.setBrush(color)
 			painter.drawRect(QRect(pos[1] * BLOCK_SIZE, pos[0] * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
 		painter.end()
 		self.label.setPixmap(pixmap)
