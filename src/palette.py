@@ -6,7 +6,7 @@ import sys
 import util
 
 REGEX_RGB = re.compile(f'^{",".join(["(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])"] * 3)}$')
-REGEX_HEX = re.compile("^#[0-9A-Za-z]{6}$")
+REGEX_HEX = re.compile("^#[0-9A-Fa-f]{6}$")
 
 
 class QtCore(QMainWindow, Ui_MainWindow):
