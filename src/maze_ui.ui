@@ -180,7 +180,7 @@
         </item>
         <item>
          <property name="text">
-          <string>测试</string>
+          <string>不生成新迷宫</string>
          </property>
         </item>
        </widget>
@@ -221,6 +221,9 @@
         </property>
         <property name="cursor">
          <cursorShape>PointingHandCursor</cursorShape>
+        </property>
+        <property name="frame">
+         <bool>false</bool>
         </property>
         <property name="minimum">
          <number>5</number>
@@ -264,6 +267,9 @@
         <property name="cursor">
          <cursorShape>PointingHandCursor</cursorShape>
         </property>
+        <property name="frame">
+         <bool>false</bool>
+        </property>
         <property name="minimum">
          <number>5</number>
         </property>
@@ -301,22 +307,6 @@
         </property>
         <property name="text">
          <string>寻路算法</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="8">
-       <widget class="QPushButton" name="pushButton_clear">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="focusPolicy">
-         <enum>Qt::FocusPolicy::NoFocus</enum>
-        </property>
-        <property name="text">
-         <string>清除</string>
         </property>
        </widget>
       </item>
@@ -432,6 +422,9 @@
           <height>0</height>
          </size>
         </property>
+        <property name="frame">
+         <bool>false</bool>
+        </property>
         <property name="readOnly">
          <bool>true</bool>
         </property>
@@ -451,6 +444,9 @@
           <height>0</height>
          </size>
         </property>
+        <property name="frame">
+         <bool>false</bool>
+        </property>
         <property name="readOnly">
          <bool>true</bool>
         </property>
@@ -459,6 +455,29 @@
         </property>
         <property name="maximum">
          <number>999999</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="8">
+       <widget class="QPushButton" name="pushButton_clear">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::FocusPolicy::NoFocus</enum>
+        </property>
+        <property name="text">
+         <string>清除</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="8">
+       <widget class="QPushButton" name="pushButton_replay">
+        <property name="text">
+         <string>回放</string>
         </property>
        </widget>
       </item>
