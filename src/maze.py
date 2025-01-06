@@ -1,5 +1,5 @@
 from maze_ui import Ui_MainWindow
-from PyQt6.QtCore import QRectF, Qt
+from PyQt6.QtCore import pyqtSignal, QRectF, QThread, Qt
 from PyQt6.QtGui import QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from itertools import product
@@ -12,6 +12,7 @@ DIRECTION = {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0), Qt.Key.Key_Left: (
 
 
 class QtCore(QMainWindow, Ui_MainWindow):
+	THREAD = None
 	field, puppet, finish = None, None, None
 	row_count, column_count, block_size = None, None, None
 	barriers, routes = [], []
@@ -22,15 +23,14 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../maze/robot"))
 
-		util.button(self.pushButton_maze, self.restart)
-		util.button(self.pushButton_solve, self.solve)
-		util.button(self.pushButton_clear, self.clear)
-		util.button(self.pushButton_min_row, lambda: self.spinBox_row.setValue(self.spinBox_row.minimum()))
-		util.button(self.pushButton_max_row, lambda: self.spinBox_row.setValue(self.spinBox_row.maximum()))
-		util.button(self.pushButton_min_column, lambda: self.spinBox_column.setValue(self.spinBox_column.minimum()))
-		util.button(self.pushButton_max_column, lambda: self.spinBox_column.setValue(self.spinBox_column.maximum()))
-		self.comboBox_maze.currentTextChanged.connect(self.restart)
-		self.comboBox_solve.currentTextChanged.connect(self.solve)
+		util.button(self.pushButton_maze, self.restart, "../maze/maze")
+		util.button(self.pushButton_solve, self.solve, "../maze/locate")
+		util.button(self.pushButton_replay, self.replay, "../maze/replay")
+		util.button(self.pushButton_clear, self.clear, "delete")
+		util.button(self.pushButton_min_row, lambda: self.spinBox_row.setValue(self.spinBox_row.minimum()), "../maze/min")
+		util.button(self.pushButton_max_row, lambda: self.spinBox_row.setValue(self.spinBox_row.maximum()), "../maze/max")
+		util.button(self.pushButton_min_column, lambda: self.spinBox_column.setValue(self.spinBox_column.minimum()), "../maze/min")
+		util.button(self.pushButton_max_column, lambda: self.spinBox_column.setValue(self.spinBox_column.maximum()), "../maze/max")
 
 		self.restart()
 
@@ -39,7 +39,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.row_count, self.column_count = row * 2 + 1, column * 2 + 1
 
 		w, h = self.frame.minimumWidth(), self.frame.minimumHeight()
-		self.block_size = round(min(w / self.column_count, h / self.row_count), 3)
+		self.block_size = round(min(w / self.column_count, h / self.row_count), 4)
 
 		self.label_canvas.setFixedSize(int(self.block_size * self.column_count), int(self.block_size * self.row_count))
 		pixmap = QPixmap(self.label_canvas.width(), self.label_canvas.height())
@@ -55,7 +55,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.puppet, self.finish = random.sample(self.routes, 2)
 		self.clear()
 
-	def solve(self):
+	def solve(self, replay=False):
 		algorithm = self.comboBox_solve.currentText()
 		if algorithm == "dfs":
 			QtSolve.dfs(self)
@@ -63,11 +63,16 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			QtSolve.bfs(self)
 
 		self.clear()
-		self.draw(self.explored, Qt.GlobalColor.darkGreen)
-		self.draw(self.solution, Qt.GlobalColor.green)
+		self.draw(self.explored, Qt.GlobalColor.darkGreen) if not replay else None
+		self.draw(self.solution, Qt.GlobalColor.green) if not replay else None
 
 		self.spinBox_solution.setValue(len(self.solution) - 1)
 		self.spinBox_explored.setValue(len(self.explored) - 1)
+
+	def replay(self):
+		self.solve(replay=True)
+		self.THREAD = QtThread()
+		self.THREAD.start()
 
 	def clear(self):
 		self.draw(self.routes)
@@ -205,6 +210,52 @@ class QtStatic:
 		if not self.field[x][y]:
 			return False
 		return True
+
+
+class QtThread(QThread):
+	signal_starts = pyqtSignal()
+	signal_update = pyqtSignal(list, Qt.GlobalColor)
+	signal_finish = pyqtSignal()
+
+	def __init__(self):
+		super().__init__()
+		util.cast(self.signal_starts).connect(self.starts)
+		util.cast(self.signal_update).connect(self.update)
+		util.cast(self.signal_finish).connect(self.finish)
+
+	def run(self):
+		util.cast(self.signal_starts).emit()
+		for e in qt_core.explored:
+			util.cast(self.signal_update).emit([e], Qt.GlobalColor.darkGreen)
+			self.msleep(1)
+		for s in qt_core.solution:
+			util.cast(self.signal_update).emit([s], Qt.GlobalColor.green)
+			self.msleep(1)
+		util.cast(self.signal_finish).emit()
+
+	@staticmethod
+	def starts():
+		qt_core.pushButton_replay.setEnabled(False)
+		qt_core.pushButton_replay.setText("回放中")
+		qt_core.pushButton_replay.setIcon(util.icon("loading"))
+
+		qt_core.pushButton_maze.setEnabled(False)
+		qt_core.pushButton_solve.setEnabled(False)
+		qt_core.pushButton_clear.setEnabled(False)
+
+	@staticmethod
+	def update(blocks, color):
+		qt_core.draw(blocks, color)
+
+	@staticmethod
+	def finish():
+		qt_core.pushButton_replay.setEnabled(True)
+		qt_core.pushButton_replay.setText("回放")
+		qt_core.pushButton_replay.setIcon(util.icon("../maze/replay"))
+
+		qt_core.pushButton_maze.setEnabled(True)
+		qt_core.pushButton_solve.setEnabled(True)
+		qt_core.pushButton_clear.setEnabled(True)
 
 
 if __name__ == "__main__":
