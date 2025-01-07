@@ -142,40 +142,36 @@
     </item>
     <item>
      <layout class="QGridLayout" name="gridLayout">
-      <item row="1" column="4">
-       <widget class="QPushButton" name="pushButton_max_row">
+      <item row="2" column="8">
+       <widget class="QLabel" name="label_searched">
         <property name="text">
-         <string>行最大</string>
+         <string>搜索格数</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="3">
-       <widget class="QPushButton" name="pushButton_min_row">
-        <property name="text">
-         <string>行最小</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="6">
-       <widget class="QComboBox" name="comboBox_maze">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>120</width>
-          <height>0</height>
-         </size>
-        </property>
+      <item row="1" column="5">
+       <widget class="QComboBox" name="comboBox_generate">
         <property name="cursor">
          <cursorShape>PointingHandCursor</cursorShape>
         </property>
         <item>
          <property name="text">
-          <string>随机dfs</string>
+          <string>随机DFS</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>随机Kruskal</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Prim</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>递归分割</string>
          </property>
         </item>
         <item>
@@ -185,79 +181,163 @@
         </item>
        </widget>
       </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="label_column">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>列数(5~100)</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="4">
-       <widget class="QPushButton" name="pushButton_max_column">
+       <widget class="QLabel" name="label_search">
         <property name="text">
-         <string>列最大</string>
+         <string>搜索算法</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="2">
-       <widget class="QSpinBox" name="spinBox_column">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>100</width>
-          <height>0</height>
-         </size>
-        </property>
+      <item row="2" column="5">
+       <widget class="QComboBox" name="comboBox_search">
         <property name="cursor">
          <cursorShape>PointingHandCursor</cursorShape>
         </property>
-        <property name="frame">
-         <bool>false</bool>
+        <item>
+         <property name="text">
+          <string>深度优先(DFS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>广度优先(BFS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>深度受限(DLS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>迭代加深(IDS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>双向搜索(BS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>爬山法/贪婪最佳优先搜索(HCS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>最佳优先搜索(BFS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>集束搜索(BeamS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>GBFS</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>统一代价搜索(UCS)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>A*</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="2" column="6">
+       <widget class="QPushButton" name="pushButton_search">
+        <property name="focusPolicy">
+         <enum>Qt::FocusPolicy::NoFocus</enum>
         </property>
-        <property name="minimum">
-         <number>5</number>
+        <property name="text">
+         <string>搜索</string>
         </property>
-        <property name="maximum">
-         <number>100</number>
-        </property>
+       </widget>
+      </item>
+      <item row="2" column="9">
+       <widget class="QProgressBar" name="progressBar_searched">
         <property name="value">
-         <number>10</number>
+         <number>0</number>
+        </property>
+        <property name="format">
+         <string>%v</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_row">
+        <property name="text">
+         <string>行数</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="2">
+       <widget class="QToolButton" name="toolButton_row_min"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_column">
+        <property name="text">
+         <string>列数</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="7">
+       <widget class="QToolButton" name="toolButton_replay"/>
+      </item>
+      <item row="1" column="6">
+       <widget class="QPushButton" name="pushButton_generate">
+        <property name="focusPolicy">
+         <enum>Qt::FocusPolicy::NoFocus</enum>
+        </property>
+        <property name="text">
+         <string>生成</string>
         </property>
        </widget>
       </item>
       <item row="1" column="9">
-       <widget class="QLabel" name="label_solution">
+       <widget class="QProgressBar" name="progressBar_enlightened">
+        <property name="value">
+         <number>0</number>
+        </property>
+        <property name="textVisible">
+         <bool>true</bool>
+        </property>
+        <property name="format">
+         <string>%v</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="4">
+       <widget class="QLabel" name="label_generate">
+        <property name="text">
+         <string>生成算法</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="8">
+       <widget class="QLabel" name="label_enlightened">
         <property name="text">
          <string>路径格数</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="9">
-       <widget class="QLabel" name="label_explored">
-        <property name="text">
-         <string>搜索格数</string>
-        </property>
-       </widget>
+      <item row="1" column="3">
+       <widget class="QToolButton" name="toolButton_row_max"/>
       </item>
-      <item row="1" column="2">
+      <item row="2" column="2">
+       <widget class="QToolButton" name="toolButton_column_min"/>
+      </item>
+      <item row="2" column="3">
+       <widget class="QToolButton" name="toolButton_column_max"/>
+      </item>
+      <item row="1" column="1">
        <widget class="QSpinBox" name="spinBox_row">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
         <property name="minimumSize">
          <size>
           <width>100</width>
@@ -281,205 +361,27 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="7">
-       <widget class="QPushButton" name="pushButton_maze">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="focusPolicy">
-         <enum>Qt::FocusPolicy::NoFocus</enum>
-        </property>
-        <property name="text">
-         <string>生成</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="5">
-       <widget class="QLabel" name="label_solve">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>寻路算法</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="3">
-       <widget class="QPushButton" name="pushButton_min_column">
-        <property name="text">
-         <string>列最小</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="6">
-       <widget class="QComboBox" name="comboBox_solve">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>120</width>
-          <height>0</height>
-         </size>
-        </property>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="spinBox_column">
         <property name="cursor">
          <cursorShape>PointingHandCursor</cursorShape>
         </property>
-        <item>
-         <property name="text">
-          <string>dfs</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>bfs</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="11">
-       <spacer name="horizontalSpacer_1">
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="1" column="5">
-       <widget class="QLabel" name="label_maze">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>迷宫生成算法</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <spacer name="horizontalSpacer_0">
-        <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>40</width>
-          <height>20</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="2" column="7">
-       <widget class="QPushButton" name="pushButton_solve">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="focusPolicy">
-         <enum>Qt::FocusPolicy::NoFocus</enum>
-        </property>
-        <property name="text">
-         <string>寻路</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="label_row">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>行数(5~60)</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="10">
-       <widget class="QSpinBox" name="spinBox_solution">
-        <property name="minimumSize">
-         <size>
-          <width>100</width>
-          <height>0</height>
-         </size>
-        </property>
         <property name="frame">
          <bool>false</bool>
         </property>
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
+        <property name="minimum">
+         <number>5</number>
         </property>
         <property name="maximum">
-         <number>999999</number>
+         <number>100</number>
+        </property>
+        <property name="value">
+         <number>10</number>
         </property>
        </widget>
       </item>
-      <item row="2" column="10">
-       <widget class="QSpinBox" name="spinBox_explored">
-        <property name="minimumSize">
-         <size>
-          <width>100</width>
-          <height>0</height>
-         </size>
-        </property>
-        <property name="frame">
-         <bool>false</bool>
-        </property>
-        <property name="readOnly">
-         <bool>true</bool>
-        </property>
-        <property name="buttonSymbols">
-         <enum>QAbstractSpinBox::ButtonSymbols::NoButtons</enum>
-        </property>
-        <property name="maximum">
-         <number>999999</number>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="8">
-       <widget class="QPushButton" name="pushButton_clear">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="focusPolicy">
-         <enum>Qt::FocusPolicy::NoFocus</enum>
-        </property>
-        <property name="text">
-         <string>清除</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="8">
-       <widget class="QPushButton" name="pushButton_replay">
-        <property name="text">
-         <string>回放</string>
-        </property>
-       </widget>
+      <item row="1" column="7">
+       <widget class="QToolButton" name="toolButton_clear"/>
       </item>
      </layout>
     </item>
