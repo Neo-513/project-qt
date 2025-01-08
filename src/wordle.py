@@ -1,5 +1,6 @@
 from wordle_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import partial
 from itertools import chain
@@ -27,6 +28,11 @@ QSS_BUTTON = {
 	"2": _QSS_BUTTON % ("white", "rgb(112,169,97)", "rgb(82,139,67)", "rgb(52,109,37)")
 }
 
+FONT_FAMILY = QFont().family()
+FONT_LABEL = QFont(FONT_FAMILY, 21, QFont.Weight.Bold)
+FONT_LETTER = QFont(FONT_FAMILY, 14, QFont.Weight.Bold)
+FONT_BUTTON = QFont(FONT_FAMILY, 12, QFont.Weight.Bold)
+
 KEY = {getattr(Qt.Key, f"Key_{chr(i)}"): chr(i) for i in range(65, 91)}
 KEY.update({Qt.Key.Key_Return: "ENTER", Qt.Key.Key_Backspace: "DELETE"})
 
@@ -35,22 +41,36 @@ POSSIBLE_WORDS = util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "possi
 ROW_COUNT, COL_COUNT = 6, 5
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
+class MyCore(QMainWindow, Ui_MainWindow):
 	guesses, answer, round = None, None, None
+	LABEL, BUTTON = [], []
 
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../wordle/mosaic"))
 
-		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(COL_COUNT)] for i in range(ROW_COUNT)]
-		self.BUTTON = {chr(i): getattr(self, f"pushButton_{chr(i + 32)}") for i in range(65, 91)}
-		self.BUTTON.update({"ENTER": self.pushButton_enter, "DELETE": self.pushButton_delete})
+		self.load()
 		for key, button in self.BUTTON.items():
 			util.button(button, partial(self.compute, key=key))
-
 		util.button(self.toolButton, self.restart, "../wordle/restart")
 		self.restart()
+
+	def load(self):
+		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(COL_COUNT)] for i in range(ROW_COUNT)]
+		for label in chain.from_iterable(self.LABEL):
+			label.setFont(FONT_LABEL)
+			label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+		self.BUTTON = {chr(i): getattr(self, f"pushButton_{chr(i + 32)}") for i in range(65, 91)}
+		self.BUTTON.update({"ENTER": self.pushButton_enter, "DELETE": self.pushButton_delete})
+		for letter, button in self.BUTTON.items():
+			button.setFont(FONT_LETTER)
+			button.setText(letter)
+		self.pushButton_enter.setFont(FONT_BUTTON)
+		self.pushButton_delete.setFont(FONT_BUTTON)
+
+		self.gridLayout_0.addWidget(self.toolButton, 0, 6, 1, 1, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
 
 	def restart(self):
 		self.guesses, self.answer, self.round = [""] * ROW_COUNT, random.choice(POSSIBLE_WORDS).lower(), 0
@@ -125,7 +145,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.setFixedSize(qt_core.width(), qt_core.height())
-	qt_core.show()
+	my_core = MyCore()
+	my_core.setFixedSize(my_core.window().size())
+	my_core.show()
 	sys.exit(app.exec())
