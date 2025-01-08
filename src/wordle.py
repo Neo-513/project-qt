@@ -42,8 +42,8 @@ ROW_COUNT, COL_COUNT = 6, 5
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
+	labels, buttons = [], []
 	guesses, answer, round = None, None, None
-	LABEL, BUTTON = [], []
 
 	def __init__(self):
 		super().__init__()
@@ -51,20 +51,20 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setWindowIcon(util.icon("../wordle/mosaic"))
 
 		self.load()
-		for key, button in self.BUTTON.items():
+		for key, button in self.buttons.items():
 			util.button(button, partial(self.compute, key=key))
 		util.button(self.toolButton, self.restart, "../wordle/restart")
 		self.restart()
 
 	def load(self):
-		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(COL_COUNT)] for i in range(ROW_COUNT)]
-		for label in chain.from_iterable(self.LABEL):
+		self.labels = [[getattr(self, f"label_{i}{j}") for j in range(COL_COUNT)] for i in range(ROW_COUNT)]
+		for label in chain.from_iterable(self.labels):
 			label.setFont(FONT_LABEL)
 			label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-		self.BUTTON = {chr(i): getattr(self, f"pushButton_{chr(i + 32)}") for i in range(65, 91)}
-		self.BUTTON.update({"ENTER": self.pushButton_enter, "DELETE": self.pushButton_delete})
-		for letter, button in self.BUTTON.items():
+		self.buttons = {chr(i): getattr(self, f"pushButton_{chr(i + 32)}") for i in range(65, 91)}
+		self.buttons.update({"ENTER": self.pushButton_enter, "DELETE": self.pushButton_delete})
+		for letter, button in self.buttons.items():
 			button.setFont(FONT_LETTER)
 			button.setText(letter)
 		self.pushButton_enter.setFont(FONT_BUTTON)
@@ -75,10 +75,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def restart(self):
 		self.guesses, self.answer, self.round = [""] * ROW_COUNT, random.choice(POSSIBLE_WORDS).lower(), 0
 		self.label_message.clear()
-		for label in chain.from_iterable(self.LABEL):
+		for label in chain.from_iterable(self.labels):
 			label.clear()
 			label.setStyleSheet(QSS_LABEL["without_text"])
-		for button in self.BUTTON.values():
+		for button in self.buttons.values():
 			button.setStyleSheet(QSS_BUTTON[None])
 
 	def compute(self, key):
@@ -96,12 +96,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			states = self.check(guess)
 			amounts = {}
 
-			for i, label in enumerate(self.LABEL[self.round]):
+			for i, label in enumerate(self.labels[self.round]):
 				label.setStyleSheet(QSS_LABEL[states[i]])
 				amounts.setdefault(label.text(), set()).add(states[i])
 			for letter, amount in amounts.items():
 				state = list(amount)[0] if len(amount) == 1 else "1"
-				self.BUTTON[letter].setStyleSheet(QSS_BUTTON[state])
+				self.buttons[letter].setStyleSheet(QSS_BUTTON[state])
 			self.round += 1
 
 			if states == ["2"] * COL_COUNT:
@@ -111,12 +111,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		elif key == "DELETE":
 			if len(guess):
 				self.guesses[self.round] = guess[:-1]
-				self.LABEL[self.round][len(guess) - 1].clear()
-				self.LABEL[self.round][len(guess) - 1].setStyleSheet(QSS_LABEL["without_text"])
+				self.labels[self.round][len(guess) - 1].clear()
+				self.labels[self.round][len(guess) - 1].setStyleSheet(QSS_LABEL["without_text"])
 		elif len(guess) < COL_COUNT:
 			self.guesses[self.round] = guess + key.lower()
-			self.LABEL[self.round][len(guess)].setText(key)
-			self.LABEL[self.round][len(guess)].setStyleSheet(QSS_LABEL["with_text"])
+			self.labels[self.round][len(guess)].setText(key)
+			self.labels[self.round][len(guess)].setStyleSheet(QSS_LABEL["with_text"])
 
 	def check(self, guess):
 		state = [""] * 5
