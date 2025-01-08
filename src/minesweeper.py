@@ -27,10 +27,10 @@ BLOCK_WIDTH, BLOCK_HEIGHT = 35, 35
 
 TIMER = QTimer()
 TIMER.setInterval(10)
-util.cast(TIMER).timeout.connect(lambda: QtStatic.timeout(qt_core))
+util.cast(TIMER).timeout.connect(lambda: QtStatic.timeout(my_core))
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
+class MyCore(QMainWindow, Ui_MainWindow):
 	ROW_COUNT, COL_COUNT, MINE_COUNT = None, None, None
 	minefield, amount_pressed, amount_flagged = None, None, None
 
@@ -183,21 +183,21 @@ class QtCore(QMainWindow, Ui_MainWindow):
 class QtStatic:
 	@staticmethod
 	def reset(x, y):
-		mine_poses = [(i, j) for i, j in product(range(qt_core.ROW_COUNT), range(qt_core.COL_COUNT))]
+		mine_poses = [(i, j) for i, j in product(range(my_core.ROW_COUNT), range(my_core.COL_COUNT))]
 		for i, j in product(range(-2, 3), range(-2, 3)):
 			if QtStatic.is_valid_pos(x + i, y + j):
 				mine_poses.remove((x + i, y + j))
-		mine_poses = random.sample(mine_poses, qt_core.MINE_COUNT)
+		mine_poses = random.sample(mine_poses, my_core.MINE_COUNT)
 
-		qt_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(qt_core.COL_COUNT)] for i in range(qt_core.ROW_COUNT)]
+		my_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(my_core.COL_COUNT)] for i in range(my_core.ROW_COUNT)]
 		for mine_pos in mine_poses:
 			for i, j in QtStatic.around(mine_pos[0], mine_pos[1]):
-				if qt_core.minefield[i][j] != 9:
-					qt_core.minefield[i][j] += 1
+				if my_core.minefield[i][j] != 9:
+					my_core.minefield[i][j] += 1
 
 	@staticmethod
 	def is_valid_pos(x, y):
-		return 0 <= x < qt_core.ROW_COUNT and 0 <= y < qt_core.COL_COUNT
+		return 0 <= x < my_core.ROW_COUNT and 0 <= y < my_core.COL_COUNT
 
 	@staticmethod
 	def around(x, y):
@@ -232,7 +232,7 @@ class MineBlock(QPushButton):
 	def mousePressEvent(self, a0):
 		super().mousePressEvent(a0)
 		if a0.buttons() == Qt.MouseButton.LeftButton and not self.status_flagged:
-			if not qt_core.amount_pressed:
+			if not my_core.amount_pressed:
 				TIMER.start()
 				QtStatic.reset(self.x, self.y)
 			if not self.status_pressed:
@@ -247,12 +247,12 @@ class MineBlock(QPushButton):
 
 	def mouseReleaseEvent(self, e):
 		for pos in self.hint_pos:
-			qt_core.gridLayout.itemAtPosition(pos[0], pos[1]).widget().setStyleSheet(QSS_UNEXPLORED)
+			my_core.gridLayout.itemAtPosition(pos[0], pos[1]).widget().setStyleSheet(QSS_UNEXPLORED)
 		self.hint_pos.clear()
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
