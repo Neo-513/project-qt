@@ -23,15 +23,11 @@ COLOR = {
 
 APP = QApplication([])
 SCREEN_WIDTH, SCREEN_HEIGHT = APP.primaryScreen().size().width(), APP.primaryScreen().size().height()
-BLOCK_WIDTH, BLOCK_HEIGHT = 35, 35
-
-TIMER = QTimer()
-TIMER.setInterval(10)
-util.cast(TIMER).timeout.connect(lambda: QtStatic.timeout(my_core))
+BLOCK_SIZE = 35
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	ROW_COUNT, COL_COUNT, MINE_COUNT = None, None, None
+	row_count, col_count, mine_count = None, None, None
 	minefield, amount_pressed, amount_flagged = None, None, None
 
 	def __init__(self):
@@ -43,8 +39,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.radioButton_medium.clicked.connect(self.switch)
 		self.radioButton_hard.clicked.connect(self.switch)
 
-		row_count, col_count, _ = DIFFICULTY["hard"]
-		for i, j in product(range(row_count), range(col_count)):
+		self.timer = QTimer()
+		self.timer.setInterval(10)
+		util.cast(self.timer).timeout.connect(lambda: QtStatic.timeout(self))
+
+		rc, cc, _ = DIFFICULTY["hard"]
+		for i, j in product(range(rc), range(cc)):
 			widget = MineBlock(i, j)
 			widget.func_sweep = lambda x=i, y=j: self.func_sweep(x, y)
 			widget.func_flag = lambda w=widget: self.func_flag(w)
@@ -54,7 +54,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	def switch(self):
 		difficulty = self.sender().objectName().split("_")[-1]
-		self.ROW_COUNT, self.COL_COUNT, self.MINE_COUNT = DIFFICULTY[difficulty]
+		self.row_count, self.col_count, self.mine_count = DIFFICULTY[difficulty]
 		row_max, col_max, _ = DIFFICULTY["hard"]
 		row_min, col_min, _ = DIFFICULTY["easy"]
 
@@ -66,11 +66,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		for i, j in product(range(row_max), range(col_max)):
 			if i < row_min and j < col_min:
 				continue
-			if i >= self.ROW_COUNT or j >= self.COL_COUNT:
+			if i >= self.row_count or j >= self.col_count:
 				continue
 			self.gridLayout.itemAtPosition(i, j).widget().show()
 
-		window_width, window_height = self.COL_COUNT * (BLOCK_WIDTH + 1) + 17, self.ROW_COUNT * (BLOCK_HEIGHT + 1) + 54
+		window_width, window_height = self.col_count * (BLOCK_SIZE + 1) + 17, self.row_count * (BLOCK_SIZE + 1) + 54
 		self.window().setFixedSize(QSize(window_width, window_height))
 		self.window().move((SCREEN_WIDTH - window_width) // 2, (SCREEN_HEIGHT - window_height) // 2)
 		self.restart()
@@ -79,10 +79,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.amount_pressed = 0
 		self.amount_flagged = 0
 
-		TIMER.stop()
-		TIMER.setProperty("time", 0)
+		self.timer.stop()
+		self.timer.setProperty("time", 0)
 
-		for i, j in product(range(self.ROW_COUNT), range(self.COL_COUNT)):
+		for i, j in product(range(self.row_count), range(self.col_count)):
 			widget = self.gridLayout.itemAtPosition(i, j).widget()
 			widget.setText("")
 			widget.status_pressed = False
@@ -97,7 +97,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.expand(x, y)
 		QtStatic.message(self)
 
-		if self.amount_pressed == self.ROW_COUNT * self.COL_COUNT - self.MINE_COUNT:
+		if self.amount_pressed == self.row_count * self.col_count - self.mine_count:
 			return self.judge(True)
 
 	def func_flag(self, w):
@@ -154,7 +154,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 				self.expand(pos[0], pos[1])
 
 	def judge(self, win):
-		for i, j in product(range(self.ROW_COUNT), range(self.COL_COUNT)):
+		for i, j in product(range(self.row_count), range(self.col_count)):
 			widget = self.gridLayout.itemAtPosition(i, j).widget()
 			if self.minefield[i][j] == 9 and not widget.status_flagged:
 				if win:
@@ -164,32 +164,32 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			elif self.minefield[i][j] != 9 and widget.status_flagged:
 				widget.setIcon(util.icon("../minesweeper/misjudged"))
 
-		TIMER.stop()
-		self.amount_flagged = self.MINE_COUNT
+		self.timer.stop()
+		self.amount_flagged = self.mine_count
 		QtStatic.message(self)
 		util.dialog("You won", "success") if win else util.dialog("You lose", "error")
 		self.restart()
 
 	def leaveEvent(self, a0):
 		super().leaveEvent(a0)
-		if self.amount_pressed and TIMER.isActive():
-			TIMER.stop()
+		if self.amount_pressed and self.timer.isActive():
+			self.timer.stop()
 
 	def enterEvent(self, event):
 		super().enterEvent(event)
-		if self.amount_pressed and not TIMER.isActive():
-			TIMER.start()
+		if self.amount_pressed and not self.timer.isActive():
+			self.timer.start()
 
 class QtStatic:
 	@staticmethod
 	def reset(x, y):
-		mine_poses = [(i, j) for i, j in product(range(my_core.ROW_COUNT), range(my_core.COL_COUNT))]
+		mine_poses = [(i, j) for i, j in product(range(my_core.row_count), range(my_core.col_count))]
 		for i, j in product(range(-2, 3), range(-2, 3)):
 			if QtStatic.is_valid_pos(x + i, y + j):
 				mine_poses.remove((x + i, y + j))
-		mine_poses = random.sample(mine_poses, my_core.MINE_COUNT)
+		mine_poses = random.sample(mine_poses, my_core.mine_count)
 
-		my_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(my_core.COL_COUNT)] for i in range(my_core.ROW_COUNT)]
+		my_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(my_core.col_count)] for i in range(my_core.row_count)]
 		for mine_pos in mine_poses:
 			for i, j in QtStatic.around(mine_pos[0], mine_pos[1]):
 				if my_core.minefield[i][j] != 9:
@@ -197,7 +197,7 @@ class QtStatic:
 
 	@staticmethod
 	def is_valid_pos(x, y):
-		return 0 <= x < my_core.ROW_COUNT and 0 <= y < my_core.COL_COUNT
+		return 0 <= x < my_core.row_count and 0 <= y < my_core.col_count
 
 	@staticmethod
 	def around(x, y):
@@ -206,15 +206,15 @@ class QtStatic:
 
 	@staticmethod
 	def message(self):
-		rest = self.MINE_COUNT - self.amount_flagged
-		cost = round(TIMER.property("time"))
+		rest = self.mine_count - self.amount_flagged
+		cost = round(self.timer.property("time"))
 		self.statusbar.showMessage(f"剩余: {rest:02}  用时: {cost:03}")
 
 	@staticmethod
 	def timeout(self):
-		TIMER.setProperty("time", TIMER.property("time") + TIMER.interval() / 1000)
-		if TIMER.property("time") >= 999:
-			TIMER.stop()
+		self.timer.setProperty("time", self.timer.property("time") + self.timer.interval() / 1000)
+		if self.timer.property("time") >= 999:
+			self.timer.stop()
 		QtStatic.message(self)
 
 
@@ -225,7 +225,7 @@ class MineBlock(QPushButton):
 
 	def __init__(self, x, y):
 		super().__init__()
-		self.setMinimumSize(BLOCK_WIDTH, BLOCK_HEIGHT)
+		self.setMinimumSize(BLOCK_SIZE, BLOCK_SIZE)
 		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 		self.x, self.y = x, y
 
@@ -233,7 +233,7 @@ class MineBlock(QPushButton):
 		super().mousePressEvent(a0)
 		if a0.buttons() == Qt.MouseButton.LeftButton and not self.status_flagged:
 			if not my_core.amount_pressed:
-				TIMER.start()
+				my_core.timer.start()
 				QtStatic.reset(self.x, self.y)
 			if not self.status_pressed:
 				self.func_sweep()
