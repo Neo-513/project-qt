@@ -37,8 +37,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			for i, drop in enumerate(self.drops):
 				x, y = i * FONT.pointSize(), drop * FONT.pointSize()
 				painter.drawText(x, y, random.choice(CHARSET))
-				self.drops[i] = 1 if y >= self.label.height() else (self.drops[i] + 1)
-			self.label.setPixmap(pixmap)
+				if y >= self.label.height():
+					self.drops[i] = 0
+				self.drops[i] += 1
+		self.label.setPixmap(pixmap)
 
 
 if __name__ == "__main__":
