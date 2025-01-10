@@ -7,9 +7,10 @@ import sys
 import webbrowser
 import util
 
+ICON = {"Q": "../database/lock", "I": "add", "U": "edit", "D": "delete"}
 
-class QtCore(QMainWindow, Ui_MainWindow):
-	ICON = {"Q": "../database/lock", "I": "add", "U": "edit", "D": "delete"}
+
+class MyCore(QMainWindow, Ui_MainWindow):
 	config = None
 
 	def __init__(self):
@@ -21,15 +22,15 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_delete, self.func_delete, "delete")
 		util.button(self.pushButton_save, self.func_save, "save")
 		util.select_folder(self.lineEdit_file, None, self.scan)
-		util.search(self.lineEdit_search, self.tableWidget)
-		util.Menu.menu(self, self.tableWidget, QtMenu.menu)
+		util.Menu.menu(self.tableWidget, func=self.menu)
+		self.lineEdit_search.textChanged.connect(self.search)
 		self.tableWidget.itemChanged.connect(self.editing)
 		self.tableWidget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 		self.tableWidget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-
 		self.lineEdit_file.setVisible(False)
-		if os.path.exists("dbconf.json"):
-			self.config = util.FileIO.read("dbconf.json")
+
+		if os.path.exists("database.json"):
+			self.config = util.FileIO.read("database.json")
 			for name in self.config:
 				radio = QRadioButton(name)
 				radio.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -161,7 +162,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		self.tableWidget.setRowCount(0)
 		self.tableWidget.setRowCount(len(datas))
-		self.statusbar.showMessage(f"查询到数据{self.tableWidget.rowCount()}条")
+		self.statusbar.showMessage(f"共{self.tableWidget.rowCount()}条")
 
 		self.tableWidget.setUpdatesEnabled(False)
 		for r, data in enumerate(datas):
@@ -179,8 +180,33 @@ class QtCore(QMainWindow, Ui_MainWindow):
 	def change(self, r, status):
 		self.tableWidget.itemChanged.disconnect(self.editing)
 		self.tableWidget.item(r, 0).setData(Qt.ItemDataRole.UserRole, status)
-		self.tableWidget.item(r, 0).setIcon(util.icon(QtCore.ICON[status]))
+		self.tableWidget.item(r, 0).setIcon(util.icon(ICON[status]))
 		self.tableWidget.itemChanged.connect(self.editing)
+
+	def search(self):
+		keyword = self.lineEdit_search.text().strip()
+		self.tableWidget.setUpdatesEnabled(False)
+		if not keyword:
+			for r in range(self.tableWidget.rowCount()):
+				self.tableWidget.setRowHidden(r, False)
+		else:
+			for r in reversed(range(self.tableWidget.rowCount())):
+				hidden = True
+				for c in range(self.tableWidget.columnCount()):
+					if self.tableWidget.item(r, c):
+						text = self.tableWidget.item(r, c).text()
+					elif isinstance(self.tableWidget.cellWidget(r, c), QLineEdit):
+						text = self.tableWidget.cellWidget(r, c).text()
+					elif isinstance(self.tableWidget.cellWidget(r, c), QComboBox):
+						text = self.tableWidget.cellWidget(r, c).currentText()
+					else:
+						text = ""
+					if keyword in text:
+						hidden = False
+						break
+				self.tableWidget.setRowHidden(r, hidden)
+		self.tableWidget.setUpdatesEnabled(True)
+		self.tableWidget.update()
 
 	def enterEvent(self, event):
 		if self.rect().bottom() - event.position().toPoint().y() >= 30:
@@ -194,25 +220,16 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			widget = self.horizontalLayout_config.itemAt(i).widget()
 			widget.setVisible(False) if widget else None
 
-
-class QtMenu:
-	@staticmethod
-	def menu(widget, point, qu_menu):
-		r = qt_core.tableWidget.currentRow()
-		if not (0 <= r < qt_core.tableWidget.rowCount()):
-			return
-		c = qt_core.tableWidget.currentColumn()
-		if not (0 <= c < qt_core.tableWidget.columnCount()):
-			return
-
-		text = qt_core.tableWidget.item(r, c).text().strip()
-		if text.startswith("http"):
-			url = qt_core.tableWidget.horizontalHeaderItem(c).data(Qt.ItemDataRole.UserRole) % text
-			util.Menu.add_menu(widget, point, qu_menu, "超链接", "internet", lambda: webbrowser.open(url))
+	def menu(self, widget, point):
+		item = widget.itemAt(point)
+		text = item.text().strip()
+		url = self.tableWidget.horizontalHeaderItem(item.column()).data(Qt.ItemDataRole.UserRole)
+		if text and url:
+			util.Menu.add(widget.property("menu"), "../database/arrow", "超链接", lambda: webbrowser.open(url % text))
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
