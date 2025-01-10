@@ -13,24 +13,12 @@
   <property name="windowTitle">
    <string>代码打包</string>
   </property>
-  <property name="autoFillBackground">
-   <bool>true</bool>
-  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
-    <property name="bottomMargin">
-     <number>0</number>
-    </property>
     <item>
      <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="2">
        <widget class="QPushButton" name="pushButton_old">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
         <property name="text">
          <string>选择文件夹</string>
         </property>
@@ -64,7 +52,7 @@
         <item>
          <widget class="QComboBox" name="comboBox">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -72,33 +60,12 @@
           <property name="cursor">
            <cursorShape>PointingHandCursor</cursorShape>
           </property>
-          <property name="maxVisibleItems">
-           <number>30</number>
-          </property>
-          <property name="placeholderText">
-           <string/>
-          </property>
          </widget>
         </item>
        </layout>
       </item>
       <item row="3" column="2">
        <widget class="QPushButton" name="pushButton_pack">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="font">
-         <font>
-          <pointsize>9</pointsize>
-          <bold>false</bold>
-         </font>
-        </property>
-        <property name="styleSheet">
-         <string notr="true"/>
-        </property>
         <property name="text">
          <string>打包</string>
         </property>
@@ -106,12 +73,6 @@
       </item>
       <item row="1" column="2">
        <widget class="QPushButton" name="pushButton_new">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
         <property name="text">
          <string>选择文件夹</string>
         </property>
@@ -140,12 +101,6 @@
       </item>
       <item row="2" column="2">
        <widget class="QPushButton" name="pushButton_res">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
         <property name="text">
          <string>选择文件夹</string>
         </property>
@@ -155,18 +110,6 @@
     </item>
     <item>
      <widget class="QPlainTextEdit" name="plainTextEdit_cmd">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>140</height>
-       </size>
-      </property>
       <property name="maximumSize">
        <size>
         <width>16777215</width>
@@ -175,12 +118,6 @@
       </property>
       <property name="readOnly">
        <bool>true</bool>
-      </property>
-      <property name="plainText">
-       <string/>
-      </property>
-      <property name="placeholderText">
-       <string/>
       </property>
      </widget>
     </item>
@@ -223,17 +160,6 @@
     </item>
    </layout>
   </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>700</width>
-     <height>33</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
  <connections/>
