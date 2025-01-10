@@ -138,9 +138,9 @@ class MyCore(QMainWindow, Ui_MainWindow):
 					state[i] = "0"
 		return state
 
-	def keyPressEvent(self, event):
-		if event.key() in KEY:
-			self.compute(KEY[event.key()])
+	def keyPressEvent(self, a0):
+		if a0.key() in KEY:
+			self.compute(KEY[a0.key()])
 
 
 if __name__ == "__main__":
