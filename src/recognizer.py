@@ -30,7 +30,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.canvas_size = self.label_canvas.minimumWidth(), self.label_canvas.minimumHeight()
 		self.thumbnail_size = self.label_thumbnail.minimumWidth(), self.label_thumbnail.minimumHeight()
-
 		self.label_canvas.setPixmap(QPixmap(*self.canvas_size))
 		self.label_thumbnail.setPixmap(QPixmap(*self.thumbnail_size))
 		self.clear()
