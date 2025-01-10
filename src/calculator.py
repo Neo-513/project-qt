@@ -1,14 +1,12 @@
 from calculator_ui import Ui_MainWindow
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QMainWindow
-import pyperclip
 import re
 import sys
 import util
 
 REGEX = re.compile("([+*/^%()\\-])")
 REPLACEMENT = {" ": "", "\n": "", "\t": "", "（": "(", "）": ")", "(-": "(0-"}
-CALCULATE = {
+OPERATION = {
 	"+": lambda passive_num, active_num: passive_num + active_num,
 	"-": lambda passive_num, active_num: passive_num - active_num,
 	"*": lambda passive_num, active_num: passive_num * active_num,
@@ -29,7 +27,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def calculation(self):
 		equation = self.plainTextEdit.toPlainText().strip()
 		if not equation:
-			return self.statusbar.clearMessage()
+			return self.label.clear()
 
 		try:
 			equation = f"({equation})"
@@ -48,15 +46,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 					stack.append(element)
 
 			if len(stack) != 1:
-				return self.statusbar.clearMessage()
-			self.statusbar.showMessage(f"计算结果: {str(float(stack[0])).rstrip('0').rstrip('.')}")
+				return self.label.clear()
+			self.label.setText(str(float(stack[0])).rstrip("0").rstrip("."))
 		except:
-			self.statusbar.clearMessage()
-
-	def keyPressEvent(self, a0):
-		if a0.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
-			result = self.statusbar.currentMessage().lstrip("计算结果: ")
-			pyperclip.copy(result) if result else None
+			return self.label.clear()
 
 
 class QtStatic:
@@ -74,7 +67,7 @@ class QtStatic:
 		for elem in elems[1:]:
 			if stack[-1] in opers:
 				operation = None if not stack else stack.pop()
-				stack[-1] = CALCULATE[operation](float(stack[-1]), float(elem))
+				stack[-1] = OPERATION[operation](float(stack[-1]), float(elem))
 			else:
 				stack.append(elem)
 		return stack
