@@ -1,6 +1,6 @@
 from wallpaper_engine_ui import Ui_MainWindow
-from PyQt6.QtCore import QDir, QThread, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtCore import pyqtSignal, QDir, QThread, Qt
+from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QListWidgetItem, QMainWindow
 import os
 import shutil
@@ -9,8 +9,8 @@ import sys
 import util
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
-	THREAD = None
+class MyCore(QMainWindow, Ui_MainWindow):
+	my_thread = None
 
 	def __init__(self):
 		super().__init__()
@@ -26,17 +26,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		if os.path.exists("config.json"):
 			config = util.FileIO.read("config.json")["wallpaper_engine"]
-		elif os.path.exists("../config.json"):
-			config = util.FileIO.read("../config.json")["wallpaper_engine"]
-		else:
-			config = None
-		if config:
 			self.lineEdit_old.setText(config["path_old"]) if os.path.exists(config["path_old"]) else None
 			self.lineEdit_new.setText(config["path_new"]) if os.path.exists(config["path_new"]) else None
-
 		shutil.rmtree("wallpaper_engine_cache") if os.path.exists("wallpaper_engine_cache") else None
 		os.mkdir("wallpaper_engine_cache")
-		self.refresh()
+		self.radioButton_video.click()
 
 	def export(self):
 		folder_old = self.lineEdit_old.text()
@@ -54,7 +48,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			file_old = item.toolTip()
 			if not os.path.exists(file_old):
 				continue
-			file_new = os.path.join(folder_new, item.text()).replace("\\", "/")
+			file_new = util.join_path(folder_new, item.text())
 			if file_new in files.values():
 				return util.dialog(f"导出存在同名文件[{item.text()}]!", "error")
 			files[file_old] = file_new
@@ -72,8 +66,8 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			util.dialog(f"成功导出文件{len(files)}个!", "success")
 			self.refresh()
 		else:
-			self.THREAD = QtThread([(path_old, path_new) for path_old, path_new in files.items()])
-			self.THREAD.start()
+			self.my_thread = MyThread([(path_old, path_new) for path_old, path_new in files.items()])
+			self.my_thread.start()
 
 	def scan_old(self):
 		self.listWidget.clear()
@@ -88,7 +82,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			self.listWidget.setProperty("type", "scene")
 
 		for folder in QDir(path_old).entryList(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot):
-			path_jsn = os.path.join(path_old, folder, "project.json").replace("\\", "/")
+			path_jsn = util.join_path(path_old, folder, "project.json")
 			if not os.path.exists(path_jsn):
 				continue
 
@@ -97,7 +91,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 				continue
 
 			file = jsn["file"] if self.radioButton_video.isChecked() else "scene.pkg"
-			file_path = os.path.join(path_old, folder, file).replace("\\", "/")
+			file_path = util.join_path(path_old, folder, file)
 			if not os.path.exists(file_path):
 				continue
 
@@ -108,7 +102,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			self.listWidget.addItem(item)
 
 		self.listWidget.sortItems()
-		self.statusbar.showMessage(f"扫描到文件{self.listWidget.count()}个")
+		self.statusbar.showMessage(f"共{self.listWidget.count()}个")
 
 	def scan_new(self):
 		util.Tree.scan(self.treeWidget, self.lineEdit_new.text())
@@ -118,8 +112,13 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.scan_new()
 		self.progressBar.setValue(0)
 
+	def dye(self, color):
+		palette = self.plainTextEdit.palette()
+		palette.setColor(QPalette.ColorRole.Text, color)
+		self.plainTextEdit.setPalette(palette)
 
-class QtThread(QThread):
+
+class MyThread(QThread):
 	signal_starts = pyqtSignal()
 	signal_update1 = pyqtSignal(str)
 	signal_update2 = pyqtSignal(int)
@@ -134,15 +133,15 @@ class QtThread(QThread):
 		self.files = files
 
 	def run(self):
-		path_tool = os.path.join(util.RESOURCE, "wallpaper_engine", "repkg").replace("\\", "/")
-		path_cache = os.path.join(os.getcwd(), "wallpaper_engine_cache").replace("\\", "/")
-		path_material = "wallpaper_engine_cache/materials"
-		path_folder = qt_core.lineEdit_new.text()
+		path_tool = util.join_path(util.RESOURCE, "wallpaper_engine", "repkg")
+		path_cache = util.join_path(os.getcwd(), "wallpaper_engine_cache")
+		path_material = util.join_path("wallpaper_engine_cache", "materials")
+		path_folder = my_core.lineEdit_new.text()
 
 		util.cast(self.signal_starts).emit()
 		for i, file in enumerate(self.files):
 			path_old, path_new = file
-			cmd = f"{path_tool[0]}: & cd {path_tool} & RePKG.exe extract {path_old} -o {path_cache}"
+			cmd = f'{path_tool[0]}: & cd "{path_tool}" & RePKG.exe extract "{path_old}" -o "{path_cache}"'
 			shutil.rmtree("wallpaper_engine_cache") if os.path.exists("wallpaper_engine_cache") else None
 
 			with subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as sp:
@@ -150,8 +149,8 @@ class QtThread(QThread):
 				util.cast(self.signal_update1).emit(f"> {cmd}")
 				for feedback in sp.stdout:
 					util.cast(self.signal_update1).emit(feedback.strip()) if feedback.strip() else None
-			if sp.wait():
-				return util.cast(self.signal_finish).emit(False)
+				if sp.wait():
+					return util.cast(self.signal_finish).emit(False)
 
 			old_names = QDir(path_material).entryList(["*.png", "*.jpg", "*.jpeg", "*.gif"], QDir.Filter.Files)
 			new_names, file_paths = [], {}
@@ -162,8 +161,8 @@ class QtThread(QThread):
 				new_name = f"{path_new}{file_no}{file_type}"
 				new_names.append(os.path.basename(new_name))
 
-				file_old = os.path.join(path_material, old_name).replace("\\", "/")
-				file_new = os.path.join(path_folder, new_name).replace("\\", "/")
+				file_old = util.join_path(path_material, old_name)
+				file_new = util.join_path(path_folder, new_name)
 				file_paths[file_old] = file_new
 
 			if set(new_names) & set(os.listdir(path_folder)):
@@ -177,43 +176,37 @@ class QtThread(QThread):
 
 	@staticmethod
 	def starts():
-		qt_core.pushButton_export.setEnabled(False)
-		qt_core.pushButton_export.setText("导出中")
-		qt_core.pushButton_export.setIcon(util.icon("loading"))
+		my_core.pushButton_export.setEnabled(False)
+		my_core.pushButton_export.setText("导出中")
+		my_core.pushButton_export.setIcon(util.icon("loading"))
 
-		palette = qt_core.plainTextEdit.palette()
-		palette.setColor(QPalette.ColorRole.Text, QColor("white"))
-		qt_core.plainTextEdit.setPalette(palette)
-		qt_core.plainTextEdit.clear()
+		my_core.plainTextEdit.clear()
+		my_core.dye(Qt.GlobalColor.white)
 
 	@staticmethod
 	def update1(feedback):
-		qt_core.plainTextEdit.appendPlainText(feedback)
-		qt_core.plainTextEdit.verticalScrollBar().setValue(qt_core.plainTextEdit.verticalScrollBar().maximum())
+		my_core.plainTextEdit.appendPlainText(feedback)
+		my_core.plainTextEdit.verticalScrollBar().setValue(my_core.plainTextEdit.verticalScrollBar().maximum())
 
 	def update2(self, value):
-		qt_core.progressBar.setValue(int(100 * (value + 1) / len(self.files)))
-		qt_core.scan_new()
+		my_core.progressBar.setValue(100 * (value + 1) // len(self.files))
+		my_core.scan_new()
 
 	def finish(self, success):
-		qt_core.pushButton_export.setEnabled(True)
-		qt_core.pushButton_export.setText("导出")
-		qt_core.pushButton_export.setIcon(util.icon("save"))
+		my_core.pushButton_export.setEnabled(True)
+		my_core.pushButton_export.setText("导出")
+		my_core.pushButton_export.setIcon(util.icon("save"))
 
 		if success:
 			util.dialog(f"成功导出文件{len(self.files)}个!", "success")
 		else:
-			palette = qt_core.plainTextEdit.palette()
-			palette.setColor(QPalette.ColorRole.Text, QColor("red"))
-			qt_core.plainTextEdit.setPalette(palette)
+			my_core.dye(Qt.GlobalColor.red)
 			util.dialog("导出失败!", "error")
-
-		qt_core.refresh()
-		self.quit()
+		my_core.refresh()
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
