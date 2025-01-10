@@ -3,18 +3,17 @@ from PyQt6.QtCore import QRect, QTimer, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from itertools import product
-import numpy as np
 import random
 import sys
 import util
 
-SIDE_COUNT, GROOVE_SIDE, GAP = 4, 100, 15
-PIXMAP_SIDE = SIDE_COUNT * (GROOVE_SIDE + GAP) + GAP
-WINDOW_SIZE = PIXMAP_SIDE + 18, PIXMAP_SIDE + 20
-
-INTERVAL, FREQUENCY = 15, 10
+FRAME = 10
 FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
-GROOVE = {(i, j): (j * (GROOVE_SIDE + GAP) + GAP, i * (GROOVE_SIDE + GAP) + GAP) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT))}
+
+GROOVE_SIZE, GAP_SIZE = 100, 15
+GROOVE = {(i, j): (j * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE, i * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE) for i, j in product(range(4), range(4))}
+CANVAS_SIZE = GROOVE_SIZE * 4 + GAP_SIZE * 5
+WINDOW_SIZE = CANVAS_SIZE + 18, CANVAS_SIZE + 20
 
 COLOR_SKELETON = QColor(187, 173, 160)
 COLOR_NUM = QColor(118, 110, 101)
@@ -24,18 +23,22 @@ COLOR = {
 	256: QColor(237, 204, 97), 512: QColor(228, 192, 42), 1024: QColor(226, 186, 19), 2048: QColor(236, 196, 0)
 }
 
-ROTATE = {Qt.Key.Key_Left: 0, Qt.Key.Key_Right: 2, Qt.Key.Key_Up: 1, Qt.Key.Key_Down: -1}
-TRANSFORMATION = {
-	0: {(i, j): (i, j) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT))},
-	2: {(i, j): (SIDE_COUNT - 1 - i, SIDE_COUNT - 1 - j) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT))},
-	1: {(i, j): (j, SIDE_COUNT - 1 - i) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT))},
-	-1: {(i, j): (SIDE_COUNT - 1 - j, i) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT))}
+ROTATE = {
+	Qt.Key.Key_Left: (lambda m: m, lambda m: m),
+	Qt.Key.Key_Right: (lambda m: [row[::-1] for row in m][::-1], lambda m: [row[::-1] for row in m][::-1]),
+	Qt.Key.Key_Up: (lambda m: [list(col) for col in zip(*m)][::-1], lambda m: [list(col[::-1]) for col in zip(*m)]),
+	Qt.Key.Key_Down: (lambda m: [list(col[::-1]) for col in zip(*m)], lambda m: [list(col) for col in zip(*m)][::-1])
+}
+TRANS = {
+	Qt.Key.Key_Left: lambda x, y: (x, y),
+	Qt.Key.Key_Right: lambda x, y: (3 - x, 3 - y),
+	Qt.Key.Key_Up: lambda x, y: (y, 3 - x),
+	Qt.Key.Key_Down: lambda x, y: (3 - y, x)
 }
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	field, skeleton = np.zeros((SIDE_COUNT, SIDE_COUNT), dtype=int), None
-	trails, trans = None, None
+	field, skeleton, trails = None, None, None
 
 	def __init__(self):
 		super().__init__()
@@ -43,23 +46,22 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setWindowIcon(util.icon("../game2048/2048"))
 
 		self.timer = QTimer()
-		self.timer.setInterval(INTERVAL)
+		self.timer.setInterval(15)
 		util.cast(self.timer).timeout.connect(self.draw)
-		
-		self.skeleton = QPixmap(PIXMAP_SIDE, PIXMAP_SIDE)
-		self.skeleton.fill(COLOR_SKELETON)
-		with QPainter(self.skeleton) as painter:
-			painter.setPen(Qt.PenStyle.NoPen)
-			painter.setBrush(COLOR[0])
-			for rect in GROOVE.values():
-				painter.drawRect(QRect(*rect, GROOVE_SIDE, GROOVE_SIDE))
-		self.label.setPixmap(self.skeleton)
 
+		self.skeleton = QPixmap(CANVAS_SIZE, CANVAS_SIZE)
+		self.skeleton.fill(COLOR_SKELETON)
+		with QPainter(self.skeleton) as skeleton_painter:
+			skeleton_painter.setPen(Qt.PenStyle.NoPen)
+			skeleton_painter.setBrush(COLOR[0])
+			for skeleton_rect in GROOVE.values():
+				skeleton_painter.drawRect(QRect(*skeleton_rect, GROOVE_SIZE, GROOVE_SIZE))
+		self.label.setPixmap(self.skeleton)
 		self.statusbar.showMessage("按 Enter 重新开始")
 		self.restart()
 
 	def restart(self):
-		self.field.fill(0)
+		self.field = [[0] * 4 for _ in range(4)]
 		self.add(2)
 		self.add(2)
 		self.display()
@@ -73,47 +75,46 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 
 		previous = self.field.copy()
-		rotate = ROTATE[util.cast(a0.key())]
-		self.trans = TRANSFORMATION[rotate]
+		self.field = ROTATE[util.cast(a0.key())][0](self.field)
+		self.merge(TRANS[util.cast(a0.key())])
+		self.field = ROTATE[util.cast(a0.key())][1](self.field)
 
-		self.field = np.rot90(np.array(self.field), rotate)
-		self.merge()
-		self.field = np.rot90(np.array(self.field), -rotate)
-
-		self.timer.setProperty("time", 0)
+		self.timer.setProperty("frame", 0)
 		self.timer.start()
 
-		if np.isin(self.field, 4096).any():
-			util.dialog("You won", "success")
-			return self.restart()
+		for i, j in product(range(4), range(4)):
+			if self.field[i][j] == 2048:
+				util.dialog("You won", "success")
+				return self.restart()
 
-		if self.field.tolist() != previous.tolist():
+		if self.field != previous:
 			self.add(random.choice((2, 4)))
 
-		for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT)):
+		for i, j in product(range(4), range(4)):
+			if not self.field[i][j]:
+				return
 			if i and self.field[i][j] == self.field[i - 1][j]:
 				return
 			if j and self.field[i][j] == self.field[i][j - 1]:
 				return
 
-		if not np.isin(self.field, 0).any():
-			util.dialog("You lose", "error")
-			return self.restart()
+		util.dialog("You lose", "error")
+		self.restart()
 
 	def add(self, num):
-		x, y = random.choice([(i, j) for i, j in product(range(SIDE_COUNT), range(SIDE_COUNT)) if not self.field[i][j]])
+		x, y = random.choice([(i, j) for i, j in product(range(4), range(4)) if not self.field[i][j]])
 		self.field[x][y] = num
 
-	def merge(self):
+	def merge(self, trans):
 		following, merged, self.trails = [], [], []
-		for i in range(SIDE_COUNT):
+		for i in range(4):
 			following.append([])
 			merged.append(False)
 			if self.field[i][0]:
 				following[i].append(self.field[i][0])
-				self.trails.append([self.trans[i, 0], self.trans[i, 0], self.field[i][0]])
+				self.trails.append([trans(i, 0), trans(i, 0), self.field[i][0]])
 
-		for j, i in product(range(1, SIDE_COUNT), range(SIDE_COUNT)):
+		for j, i in product(range(1, 4), range(4)):
 			num = self.field[i][j]
 			if not num:
 				continue
@@ -123,15 +124,15 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			else:
 				following[i].append(num)
 				merged[i] = False
-			self.trails.insert(0, [self.trans[i, j], self.trans[i, len(following[i]) - 1], num])
-		self.field = [f + [0] * (SIDE_COUNT - len(f)) for f in following]
+			self.trails.insert(0, [trans(i, j), trans(i, len(following[i]) - 1), num])
+		self.field = [f + [0] * (4 - len(f)) for f in following]
 
 	def display(self):
 		pixmap = self.skeleton.copy()
 		with QPainter(pixmap) as painter:
 			painter.setFont(FONT)
 			for (i, j), g in GROOVE.items():
-				num, rect = self.field[i][j], QRect(*g, GROOVE_SIDE, GROOVE_SIDE)
+				num, rect = self.field[i][j], QRect(*g, GROOVE_SIZE, GROOVE_SIZE)
 				painter.setPen(Qt.PenStyle.NoPen)
 				painter.setBrush(COLOR[num])
 				painter.drawRect(rect)
@@ -140,8 +141,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label.setPixmap(pixmap)
 
 	def draw(self):
-		self.timer.setProperty("time", self.timer.property("time") + 1)
-		if self.timer.property("time") > FREQUENCY:
+		self.timer.setProperty("frame", self.timer.property("frame") + 1)
+		if self.timer.property("frame") > FRAME:
 			self.timer.stop()
 			self.display()
 			return
@@ -153,11 +154,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 				pos_start, pos_end, num = trail
 				groove_start, groove_end = GROOVE[pos_start], GROOVE[pos_end]
 
-				offset_x = (groove_end[0] - groove_start[0]) / FREQUENCY
-				offset_y = (groove_end[1] - groove_start[1]) / FREQUENCY
-				x = int(groove_start[0] + offset_x * self.timer.property("time"))
-				y = int(groove_start[1] + offset_y * self.timer.property("time"))
-				rect = QRect(x, y, GROOVE_SIDE, GROOVE_SIDE)
+				offset_x = (groove_end[0] - groove_start[0]) / FRAME
+				offset_y = (groove_end[1] - groove_start[1]) / FRAME
+				x = int(groove_start[0] + offset_x * self.timer.property("frame"))
+				y = int(groove_start[1] + offset_y * self.timer.property("frame"))
+				rect = QRect(x, y, GROOVE_SIZE, GROOVE_SIZE)
 
 				painter.setPen(Qt.PenStyle.NoPen)
 				painter.setBrush(COLOR[num])
