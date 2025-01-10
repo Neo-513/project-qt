@@ -35,8 +35,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.textBrowser_new.hide()
 		self.statusbar.showMessage("按 F4 比对")
 
-	def keyPressEvent(self, event):
-		if event.key() != Qt.Key.Key_F4:
+	def keyPressEvent(self, a0):
+		if a0.key() != Qt.Key.Key_F4:
 			return
 		for widget in (self.plainTextEdit_old, self.plainTextEdit_new, self.textBrowser_old, self.textBrowser_new):
 			widget.setVisible(not widget.isVisible())
