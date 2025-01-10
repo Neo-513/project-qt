@@ -9,7 +9,7 @@ REGEX_RGB = re.compile(f'^{",".join(["(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9
 REGEX_HEX = re.compile("^#[0-9A-Fa-f]{6}$")
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
+class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -48,7 +48,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.setFixedSize(qt_core.window().size())
-	qt_core.show()
+	my_core = MyCore()
+	my_core.setFixedSize(my_core.window().size())
+	my_core.show()
 	sys.exit(app.exec())
