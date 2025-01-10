@@ -1,5 +1,5 @@
 from minesweeper_ui import Ui_MainWindow
-from PyQt6.QtCore import QSize, QTimer, Qt
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QSizePolicy
 from itertools import product
@@ -22,7 +22,7 @@ COLOR = {
 }
 
 APP = QApplication([])
-SCREEN_WIDTH, SCREEN_HEIGHT = APP.primaryScreen().size().width(), APP.primaryScreen().size().height()
+SCREEN_SIZE = APP.primaryScreen().size().width(), APP.primaryScreen().size().height()
 BLOCK_SIZE = 35
 
 
@@ -41,7 +41,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.timer = QTimer()
 		self.timer.setInterval(10)
-		util.cast(self.timer).timeout.connect(lambda: QtStatic.timeout(self))
+		util.cast(self.timer).timeout.connect(lambda: MyStatic.timeout(self))
 
 		rc, cc, _ = DIFFICULTY["hard"]
 		for i, j in product(range(rc), range(cc)):
@@ -70,9 +70,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 				continue
 			self.gridLayout.itemAtPosition(i, j).widget().show()
 
-		window_width, window_height = self.col_count * (BLOCK_SIZE + 1) + 17, self.row_count * (BLOCK_SIZE + 1) + 54
-		self.window().setFixedSize(QSize(window_width, window_height))
-		self.window().move((SCREEN_WIDTH - window_width) // 2, (SCREEN_HEIGHT - window_height) // 2)
+		window_size = self.col_count * (BLOCK_SIZE + 1) + 17, self.row_count * (BLOCK_SIZE + 1) + 54
+		self.window().setFixedSize(*window_size)
+		window_pos = (SCREEN_SIZE[0] - self.window().width()) // 2, (SCREEN_SIZE[1] - self.window().height()) // 2
+		self.window().move(*window_pos)
 		self.restart()
 
 	def restart(self):
@@ -89,13 +90,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			widget.status_flagged = False
 			widget.setIcon(QIcon())
 			widget.setStyleSheet(QSS_UNEXPLORED)
-		QtStatic.message(self)
+		MyStatic.message(self)
 
 	def func_sweep(self, x, y):
 		if self.minefield[x][y] == 9:
 			return self.judge(False)
 		self.expand(x, y)
-		QtStatic.message(self)
+		MyStatic.message(self)
 
 		if self.amount_pressed == self.row_count * self.col_count - self.mine_count:
 			return self.judge(True)
@@ -104,7 +105,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		w.status_flagged = not w.status_flagged
 		w.setIcon(util.icon("../minesweeper/flag") if w.status_flagged else QIcon())
 		self.amount_flagged += 1 if w.status_flagged else -1
-		QtStatic.message(self)
+		MyStatic.message(self)
 
 	def func_hint(self, x, y):
 		if not self.minefield[x][y]:
@@ -113,7 +114,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		flagged_amount = 0
 		unflagged_pos = []
 
-		for pos in QtStatic.around(x, y):
+		for pos in MyStatic.around(x, y):
 			widget = self.gridLayout.itemAtPosition(pos[0], pos[1]).widget()
 			if widget.status_pressed:
 				continue
@@ -134,7 +135,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def expand(self, x, y):
 		if self.minefield[x][y] == 9:
 			return self.judge(False)
-		if not QtStatic.is_valid_pos(x, y):
+		if not MyStatic.is_valid_pos(x, y):
 			return
 
 		widget = self.gridLayout.itemAtPosition(x, y).widget()
@@ -150,7 +151,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.amount_pressed += 1
 
 		if not mine_value:
-			for pos in QtStatic.around(x, y):
+			for pos in MyStatic.around(x, y):
 				self.expand(pos[0], pos[1])
 
 	def judge(self, win):
@@ -166,7 +167,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.timer.stop()
 		self.amount_flagged = self.mine_count
-		QtStatic.message(self)
+		MyStatic.message(self)
 		util.dialog("You won", "success") if win else util.dialog("You lose", "error")
 		self.restart()
 
@@ -180,18 +181,18 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.amount_pressed and not self.timer.isActive():
 			self.timer.start()
 
-class QtStatic:
+class MyStatic:
 	@staticmethod
 	def reset(x, y):
 		mine_poses = [(i, j) for i, j in product(range(my_core.row_count), range(my_core.col_count))]
 		for i, j in product(range(-2, 3), range(-2, 3)):
-			if QtStatic.is_valid_pos(x + i, y + j):
+			if MyStatic.is_valid_pos(x + i, y + j):
 				mine_poses.remove((x + i, y + j))
 		mine_poses = random.sample(mine_poses, my_core.mine_count)
 
 		my_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(my_core.col_count)] for i in range(my_core.row_count)]
 		for mine_pos in mine_poses:
-			for i, j in QtStatic.around(mine_pos[0], mine_pos[1]):
+			for i, j in MyStatic.around(mine_pos[0], mine_pos[1]):
 				if my_core.minefield[i][j] != 9:
 					my_core.minefield[i][j] += 1
 
@@ -202,7 +203,7 @@ class QtStatic:
 	@staticmethod
 	def around(x, y):
 		iterator = product(range(-1, 2), range(-1, 2))
-		return [(x + i, y + j) for i, j in iterator if QtStatic.is_valid_pos(x + i, y + j) and (i or j)]
+		return [(x + i, y + j) for i, j in iterator if MyStatic.is_valid_pos(x + i, y + j) and (i or j)]
 
 	@staticmethod
 	def message(self):
@@ -215,7 +216,7 @@ class QtStatic:
 		self.timer.setProperty("time", self.timer.property("time") + self.timer.interval() / 1000)
 		if self.timer.property("time") >= 999:
 			self.timer.stop()
-		QtStatic.message(self)
+		MyStatic.message(self)
 
 
 class MineBlock(QPushButton):
@@ -229,17 +230,17 @@ class MineBlock(QPushButton):
 		self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 		self.x, self.y = x, y
 
-	def mousePressEvent(self, a0):
-		super().mousePressEvent(a0)
-		if a0.buttons() == Qt.MouseButton.LeftButton and not self.status_flagged:
+	def mousePressEvent(self, e):
+		super().mousePressEvent(e)
+		if e.buttons() == Qt.MouseButton.LeftButton and not self.status_flagged:
 			if not my_core.amount_pressed:
 				my_core.timer.start()
-				QtStatic.reset(self.x, self.y)
+				MyStatic.reset(self.x, self.y)
 			if not self.status_pressed:
 				self.func_sweep()
 			else:
 				self.func_hint()
-		elif a0.buttons() == Qt.MouseButton.RightButton:
+		elif e.buttons() == Qt.MouseButton.RightButton:
 			if not self.status_pressed:
 				self.func_flag()
 			else:
