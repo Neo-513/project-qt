@@ -8,7 +8,7 @@ import util
 
 REGEX = re.compile("([+*/^%()\\-])")
 REPLACEMENT = {" ": "", "\n": "", "\t": "", "（": "(", "）": ")", "(-": "(0-"}
-OPERATION = {
+CALCULATE = {
 	"+": lambda passive_num, active_num: passive_num + active_num,
 	"-": lambda passive_num, active_num: passive_num - active_num,
 	"*": lambda passive_num, active_num: passive_num * active_num,
@@ -18,7 +18,7 @@ OPERATION = {
 }
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
+class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -53,8 +53,8 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		except:
 			self.statusbar.clearMessage()
 
-	def keyPressEvent(self, event):
-		if event.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
+	def keyPressEvent(self, a0):
+		if a0.modifiers() == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier):
 			result = self.statusbar.currentMessage().lstrip("计算结果: ")
 			pyperclip.copy(result) if result else None
 
@@ -74,7 +74,7 @@ class QtStatic:
 		for elem in elems[1:]:
 			if stack[-1] in opers:
 				operation = None if not stack else stack.pop()
-				stack[-1] = OPERATION[operation](float(stack[-1]), float(elem))
+				stack[-1] = CALCULATE[operation](float(stack[-1]), float(elem))
 			else:
 				stack.append(elem)
 		return stack
@@ -82,6 +82,6 @@ class QtStatic:
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
