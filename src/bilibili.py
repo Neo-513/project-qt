@@ -1,6 +1,6 @@
 from bilibili_ui import Ui_MainWindow
-from PyQt6.QtCore import QDir, QThread, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtCore import pyqtSignal, QDir, QThread, Qt
+from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTreeWidgetItem
 import json
 import os
@@ -9,8 +9,8 @@ import sys
 import util
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
-	THREAD = None
+class MyCore(QMainWindow, Ui_MainWindow):
+	my_thread = None
 
 	def __init__(self):
 		super().__init__()
@@ -27,15 +27,9 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		if os.path.exists("config.json"):
 			config = util.FileIO.read("config.json")["bilibili"]
-		elif os.path.exists("../config.json"):
-			config = util.FileIO.read("../config.json")["bilibili"]
-		else:
-			config = None
-		if config:
 			self.lineEdit_old.setText(config["path_old"]) if os.path.exists(config["path_old"]) else None
 			self.lineEdit_new.setText(config["path_new"]) if os.path.exists(config["path_new"]) else None
-
-		self.refresh()
+		self.radioButton_mp4.click()
 
 	def export(self):
 		path_old = self.lineEdit_old.text()
@@ -60,7 +54,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		files = {}
 		for vid, file_name in vids.items():
-			jsn_path = os.path.join(path_old, vid, ".playurl").replace("\\", "/")
+			jsn_path = util.join_path(path_old, vid, ".playurl")
 			if not os.path.exists(jsn_path):
 				continue
 
@@ -70,11 +64,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 			file_type = "mp4" if self.radioButton_mp4.isChecked() else "mp3"
 
 			files[vid] = {
-				"file_path": os.path.join(path_new, groups[vid], f"{file_name}.{file_type}").replace("\\", "/"),
-				"mp4_old": os.path.join(path_old, vid, video).replace("\\", "/"),
-				"mp4_new": os.path.join(path_new, groups[vid], f"{vid}.mp4").replace("\\", "/"),
-				"mp3_old": os.path.join(path_old, vid, audio).replace("\\", "/"),
-				"mp3_new": os.path.join(path_new, groups[vid], f"{vid}.mp3").replace("\\", "/")
+				"file_path": util.join_path(path_new, groups[vid], f"{file_name}.{file_type}"),
+				"mp4_old": util.join_path(path_old, vid, video),
+				"mp4_new": util.join_path(path_new, groups[vid], f"{vid}.mp4"),
+				"mp3_old": util.join_path(path_old, vid, audio),
+				"mp3_new": util.join_path(path_new, groups[vid], f"{vid}.mp3")
 			}
 
 		if not files:
@@ -82,8 +76,8 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		if not util.dialog(f"确认导出文件{len(files)}个?", "warning"):
 			return
 
-		self.THREAD = QtThread(files)
-		self.THREAD.start()
+		self.my_thread = MyThread(files)
+		self.my_thread.start()
 
 	def scan_old(self):
 		self.treeWidget_old.clear()
@@ -94,7 +88,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 
 		groups, titles = {}, {}
 		for folder_name in QDir(path_old).entryList(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot):
-			jsn_path = os.path.join(path_old, folder_name, "videoInfo.json").replace("\\", "/")
+			jsn_path = util.join_path(path_old, folder_name, "videoInfo.json")
 			if not os.path.exists(jsn_path):
 				continue
 			jsn = util.FileIO.read(jsn_path)
@@ -112,7 +106,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 				child = QTreeWidgetItem([titles[folder_name]])
 				child.setCheckState(0, Qt.CheckState.Unchecked)
 				child.setIcon(0, util.icon("video" if self.radioButton_mp4.isChecked() else "audio"))
-				child.setToolTip(0, os.path.join(path_old, folder_name).replace("\\", "/"))
+				child.setToolTip(0, util.join_path(path_old, folder_name))
 				if parent:
 					parent.addChild(child)
 				else:
@@ -132,8 +126,13 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.scan_new()
 		self.progressBar.setValue(0)
 
+	def dye(self, color):
+		palette = self.plainTextEdit.palette()
+		palette.setColor(QPalette.ColorRole.Text, color)
+		self.plainTextEdit.setPalette(palette)
 
-class QtStatic:
+
+class MyStatic:
 	@staticmethod
 	def convert(path_old, path_new):
 		if not os.path.exists(path_old):
@@ -159,15 +158,15 @@ class QtStatic:
 		if os.path.exists(file_path):
 			os.remove(file_path)
 
-		ffmpeg_path = os.path.join(util.RESOURCE, "bilibili").replace("\\", "/")
+		tool_path = util.join_path(util.RESOURCE, "bilibili")
 		return (
-			f'{ffmpeg_path[0]}: & cd "{ffmpeg_path}" & ffmpeg'
+			f'{tool_path[0]}: & cd "{tool_path}" & ffmpeg'
 			f' -i "{mp4_path}" -i "{mp3_path}"'
 			f' -c:v copy -c:a aac "{file_path}"'
 		)
 
 
-class QtThread(QThread):
+class MyThread(QThread):
 	signal_starts = pyqtSignal()
 	signal_update1 = pyqtSignal(str)
 	signal_update2 = pyqtSignal(int)
@@ -193,10 +192,10 @@ class QtThread(QThread):
 				os.mkdir(folder_path)
 
 			if file_path.endswith(".mp4"):
-				QtStatic.convert(mp4_old, mp4_new)
-				QtStatic.convert(mp3_old, mp3_new)
+				MyStatic.convert(mp4_old, mp4_new)
+				MyStatic.convert(mp3_old, mp3_new)
 
-				cmd = QtStatic.command(mp4_new, mp3_new, file_path)
+				cmd = MyStatic.command(mp4_new, mp3_new, file_path)
 				if cmd:
 					with subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as sp:
 						util.cast(self.signal_update1).emit("") if i else None
@@ -206,57 +205,48 @@ class QtThread(QThread):
 								util.cast(self.signal_update1).emit(feedback.strip()) if feedback.strip() else None
 						except:
 							util.cast(self.signal_update1).emit("* 未知输出???")
-
-					os.remove(mp4_new) if os.path.exists(mp4_new) else None
-					os.remove(mp3_new) if os.path.exists(mp3_new) else None
-
-					if sp.wait():
-						return util.cast(self.signal_finish).emit(False)
+						if sp.wait():
+							return util.cast(self.signal_finish).emit(False)
 			else:
-				QtStatic.convert(mp3_old, file_path)
+				MyStatic.convert(mp3_old, file_path)
+			os.remove(mp4_new) if os.path.exists(mp4_new) else None
+			os.remove(mp3_new) if os.path.exists(mp3_new) else None
 			util.cast(self.signal_update2).emit(i)
 		util.cast(self.signal_finish).emit(True)
-		self.quit()
 
 	@staticmethod
 	def starts():
-		qt_core.pushButton_export.setEnabled(False)
-		qt_core.pushButton_export.setText("导出中")
-		qt_core.pushButton_export.setIcon(util.icon("loading"))
+		my_core.pushButton_export.setEnabled(False)
+		my_core.pushButton_export.setText("导出中")
+		my_core.pushButton_export.setIcon(util.icon("loading"))
 
-		palette = qt_core.plainTextEdit.palette()
-		palette.setColor(QPalette.ColorRole.Text, QColor("white"))
-		qt_core.plainTextEdit.setPalette(palette)
-		qt_core.plainTextEdit.clear()
+		my_core.plainTextEdit.clear()
+		my_core.dye(Qt.GlobalColor.white)
 
 	@staticmethod
 	def update1(feedback):
-		qt_core.plainTextEdit.appendPlainText(feedback)
-		qt_core.plainTextEdit.verticalScrollBar().setValue(qt_core.plainTextEdit.verticalScrollBar().maximum())
+		my_core.plainTextEdit.appendPlainText(feedback)
+		my_core.plainTextEdit.verticalScrollBar().setValue(my_core.plainTextEdit.verticalScrollBar().maximum())
 
 	def update2(self, value):
-		qt_core.progressBar.setValue(100 * (value + 1) // len(self.files))
-		qt_core.scan_new()
+		my_core.progressBar.setValue(100 * (value + 1) // len(self.files))
+		my_core.scan_new()
 
 	def finish(self, success):
-		qt_core.pushButton_export.setEnabled(True)
-		qt_core.pushButton_export.setText("导出")
-		qt_core.pushButton_export.setIcon(util.icon("save"))
+		my_core.pushButton_export.setEnabled(True)
+		my_core.pushButton_export.setText("导出")
+		my_core.pushButton_export.setIcon(util.icon("save"))
 
 		if success:
 			util.dialog(f"成功导出文件{len(self.files)}个!", "success")
 		else:
-			palette = qt_core.plainTextEdit.palette()
-			palette.setColor(QPalette.ColorRole.Text, QColor("red"))
-			qt_core.plainTextEdit.setPalette(palette)
+			my_core.dye(Qt.GlobalColor.red)
 			util.dialog("导出失败!", "error")
-
-		qt_core.refresh()
-		self.quit()
+		my_core.refresh()
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
