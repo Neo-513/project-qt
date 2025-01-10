@@ -6,7 +6,7 @@ import sys
 import util
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
+class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -74,11 +74,11 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.listWidget_new.addItems(file_names)
 
 		self.replace()
-		self.statusbar.showMessage(f"扫描到文件{self.listWidget_old.count()}个")
+		self.statusbar.showMessage(f"共{self.listWidget_old.count()}个")
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
