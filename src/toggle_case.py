@@ -12,8 +12,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../toggle_case/toggle_case"))
 
-	def keyPressEvent(self, event):
-		if event.key() != Qt.Key.Key_F4:
+	def keyPressEvent(self, a0):
+		if a0.key() != Qt.Key.Key_F4:
 			return
 
 		cursor = self.plainTextEdit.textCursor()
