@@ -41,7 +41,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 					while stack[-1] != "(":
 						elems.insert(0, stack.pop())
 					stack.pop()
-					stack.append(QtStatic.calculate(elems))
+					stack.append(self.calculate(elems))
 				elif element:
 					stack.append(element)
 
@@ -51,13 +51,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		except:
 			return self.label.clear()
 
-
-class QtStatic:
-	@staticmethod
-	def calculate(elems):
+	def calculate(self, elems):
 		for opers in (("^", "%"), ("*", "/"), ("+", "-")):
 			if any(oper in elems for oper in opers):
-				elems = QtStatic.operate(elems, opers)
+				elems = self.operate(elems, opers)
 		if len(elems) == 1:
 			return elems[0]
 
