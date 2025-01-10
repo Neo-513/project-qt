@@ -8,8 +8,8 @@ import sys
 import util
 
 
-class QtCore(QMainWindow, Ui_MainWindow):
-	THREAD = None
+class MyCore(QMainWindow, Ui_MainWindow):
+	my_thread = None
 
 	def __init__(self):
 		super().__init__()
@@ -89,11 +89,12 @@ class QtCore(QMainWindow, Ui_MainWindow):
 				file_path = util.join_path(folder_path, file_name)
 				icon_path = self.logos.get(file_path, "")
 				self.comboBox.addItem(QIcon(icon_path), file_name[:-3])
+		self.comboBox.setMaxVisibleItems(self.comboBox.count())
 
 	def pack(self):
 		if self.plainTextEdit_cmd.toPlainText():
-			self.THREAD = QtThread()
-			self.THREAD.start()
+			self.my_thread = MyThread()
+			self.my_thread.start()
 
 	def dye(self, color):
 		palette = self.plainTextEdit_feedback.palette()
@@ -101,7 +102,7 @@ class QtCore(QMainWindow, Ui_MainWindow):
 		self.plainTextEdit_feedback.setPalette(palette)
 
 
-class QtThread(QThread):
+class MyThread(QThread):
 	signal_starts = pyqtSignal()
 	signal_update = pyqtSignal(str)
 	signal_finish = pyqtSignal(bool)
@@ -113,8 +114,8 @@ class QtThread(QThread):
 		util.cast(self.signal_finish).connect(self.finish)
 
 	def run(self):
-		qt_core.command()
-		cmd = qt_core.plainTextEdit_cmd.toPlainText().replace("\n", " ")
+		my_core.command()
+		cmd = my_core.plainTextEdit_cmd.toPlainText().replace("\n", " ")
 
 		util.cast(self.signal_starts).emit()
 		with subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as sp:
@@ -125,33 +126,33 @@ class QtThread(QThread):
 
 	@staticmethod
 	def starts():
-		qt_core.pushButton_pack.setEnabled(False)
-		qt_core.pushButton_pack.setText("打包中")
-		qt_core.pushButton_pack.setIcon(util.icon("loading"))
+		my_core.pushButton_pack.setEnabled(False)
+		my_core.pushButton_pack.setText("打包中")
+		my_core.pushButton_pack.setIcon(util.icon("loading"))
 
-		qt_core.plainTextEdit_feedback.clear()
-		qt_core.dye(Qt.GlobalColor.white)
+		my_core.plainTextEdit_feedback.clear()
+		my_core.dye(Qt.GlobalColor.white)
 
 	@staticmethod
 	def update(feedback):
-		qt_core.plainTextEdit_feedback.appendPlainText(feedback)
-		qt_core.plainTextEdit_feedback.verticalScrollBar().setValue(qt_core.plainTextEdit_feedback.verticalScrollBar().maximum())
+		my_core.plainTextEdit_feedback.appendPlainText(feedback)
+		my_core.plainTextEdit_feedback.verticalScrollBar().setValue(my_core.plainTextEdit_feedback.verticalScrollBar().maximum())
 
 	@staticmethod
 	def finish(success):
-		qt_core.pushButton_pack.setEnabled(True)
-		qt_core.pushButton_pack.setText("打包")
-		qt_core.pushButton_pack.setIcon(util.icon("save"))
+		my_core.pushButton_pack.setEnabled(True)
+		my_core.pushButton_pack.setText("打包")
+		my_core.pushButton_pack.setIcon(util.icon("save"))
 
 		if success:
 			util.dialog("打包成功!", "success")
 		else:
-			qt_core.dye(Qt.GlobalColor.red)
+			my_core.dye(Qt.GlobalColor.red)
 			util.dialog("打包失败!", "error")
 
 
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
-	qt_core = QtCore()
-	qt_core.show()
+	my_core = MyCore()
+	my_core.show()
 	sys.exit(app.exec())
