@@ -1,0 +1,104 @@
+from OpenGL.GL import *
+from OpenGL.GLU import *
+import math
+import numpy as np
+import util
+
+SENSITIVITY_TRANSLATION = 0.15
+SENSITIVITY_ROTATION = 0.1
+SENSITIVITY_SCALING = 0.5
+
+FORWARD = np.array([0., 0., -1.])
+RIGHT = np.array([1., 0., 0.])
+UP = np.array([0., 1., 0.])
+
+EYE = np.array([0., 0., 0.])
+YAW = -90
+PITCH = 0
+
+
+class Model:
+	@staticmethod
+	def load(path):
+		vertices, faces = [], []
+		for line in util.FileIO.read(path).splitlines():
+			if line.startswith("v "):
+				vertices.append(tuple(float(v) for v in line[2:].split()))
+			if line.startswith("f "):
+				faces.append(tuple(int(f.split("/")[0]) - 1 for f in line[2:].split()))
+		return vertices, faces
+
+
+class Mesh:
+	def __init__(self, model):
+		self.vertices, self.faces = model
+
+	def draw(self, fill=False):
+		glPushMatrix()
+		for f in self.faces:
+			glBegin(GL_POLYGON if fill else GL_LINE_LOOP)
+			for v in f:
+				glVertex3fv(self.vertices[v])
+			glEnd()
+		glPopMatrix()
+
+	@staticmethod
+	def world_axes():
+		for i in range(3):
+			vector = np.array([i == j for j in range(3)])
+			glColor(vector)
+
+			glLineWidth(10)
+			glBegin(GL_LINES)
+			glVertex3d(*vector * 1000)
+			glVertex3d(0, 0, 0)
+			glEnd()
+
+			glLineWidth(1)
+			glBegin(GL_LINES)
+			glVertex3d(*vector * -1000)
+			glVertex3d(0, 0, 0)
+			glEnd()
+
+
+class Camera:
+	def __init__(self):
+		self.forward, self.right, self.up = FORWARD, RIGHT, UP
+		self.eye, self.yaw, self.pitch = EYE, YAW, PITCH
+
+	def translate(self, movement=None):
+		self.eye = {
+			"U": lambda: self.eye + self.up * SENSITIVITY_TRANSLATION,
+			"D": lambda: self.eye - self.up * SENSITIVITY_TRANSLATION,
+			"L": lambda: self.eye - self.right * SENSITIVITY_TRANSLATION,
+			"R": lambda: self.eye + self.right * SENSITIVITY_TRANSLATION,
+			None: lambda: self.eye
+		}[movement]()
+		gluLookAt(*self.eye, *(self.eye + self.forward), *self.up)
+
+	def rotate(self, delta_yaw, delta_pitch):
+		self.yaw += delta_yaw * SENSITIVITY_ROTATION
+		self.pitch += delta_pitch * SENSITIVITY_ROTATION
+
+		#self.yaw = min(max(self.yaw, YAW - 89), YAW + 89)
+		self.pitch = min(max(self.pitch, PITCH - 89), PITCH + 89)
+
+		self.forward = self.normalize(np.array([
+			math.cos(math.radians(self.pitch)) * math.cos(math.radians(self.yaw)),
+			math.sin(math.radians(self.pitch)),
+			math.cos(math.radians(self.pitch)) * math.sin(math.radians(self.yaw))
+		]))
+
+		self.forward = self.normalize(self.forward)
+		self.right = self.normalize(np.cross(self.forward, np.array([0., 1., 0.])))
+		self.up = self.normalize(np.cross(self.right, self.forward))
+		gluLookAt(*self.eye, *(self.eye + self.forward), *self.up)
+
+	def scaled(self, magnification):
+		self.eye += self.forward * SENSITIVITY_SCALING * magnification
+		gluLookAt(*self.eye, *(self.eye + self.forward), *self.up)
+
+	@staticmethod
+	def normalize(vector):
+		normalization = np.linalg.norm(vector)
+		return (vector / normalization) if normalization else np.array([0.] * len(vector))
