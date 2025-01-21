@@ -1,0 +1,207 @@
+from cube_ui import Ui_MainWindow
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtWidgets import QApplication, QMainWindow
+from engine import *
+from functools import partial
+from itertools import product
+import numpy as np
+import sys
+import util
+
+models = Model.load(util.join_path(util.RESOURCE, "cube", "cube.obj"))
+CAMERA = Camera()
+
+ORDER = 3
+OGI, OGJ, OGK = np.ogrid[:ORDER,:ORDER,:ORDER]
+
+
+CUBELET = [[[Mesh(models)] * ORDER for _ in range(ORDER)] for _ in range(ORDER)]
+IDENTITY = OGI * ORDER ** 2 + OGJ * ORDER + OGK
+ROTATION = np.zeros((ORDER, ORDER, ORDER, 3), dtype=int)
+
+
+
+SLICE = {
+	(1, 0, 0): [(i,) for i in range(ORDER)][::-1],
+	(-1, 0, 0): [(i,) for i in range(ORDER)],
+	(0, 1, 0): [(slice(None), i, slice(None)) for i in range(ORDER)][::-1],
+	(0, -1, 0): [(slice(None), i, slice(None)) for i in range(ORDER)],
+	(0, 0, 1): [(slice(None), slice(None), i) for i in range(ORDER)][::-1],
+	(0, 0, -1): [(slice(None), slice(None), i) for i in range(ORDER)]
+}
+
+
+
+class MyCore(QMainWindow, Ui_MainWindow):
+	identities = None
+	twist_axis, twist_angle, twist_delta, twist_bodily = None, None, None, None
+	mouse_pos = None
+
+
+
+
+	def __init__(self):
+		super().__init__()
+		self.setupUi(self)
+		self.setWindowIcon(util.icon("../cube/cube"))
+
+		util.button(self.pushButton_reset_camera, self.reset_camera)
+		for act, a, offset in product("RUFLDB", " 0", (0, 32)):
+			button_name = f"toolButton_{chr(ord(act) + offset)}{a}".strip()
+			if hasattr(self, button_name):
+				button = getattr(self, button_name)
+				util.button(button, partial(self.twist, act=(chr(ord(act) + offset) + a).replace("0", "'")))
+				button.setStyleSheet("font-size: 30px")
+
+		self.openGLWidget.initializeGL = self.initialize_gl
+		self.openGLWidget.resizeGL = self.resize_gl
+		self.openGLWidget.paintGL = self.paint_gl
+
+		util.button(self.pushButton_restore, self.restore)
+		util.button(self.pushButton_cfop, self.cfop)
+
+		self.timer = QTimer()
+		self.timer.setInterval(15)
+		util.cast(self.timer).timeout.connect(self.openGLWidget.update)
+
+
+
+
+
+	def initialize_gl(self):
+		glMatrixMode(GL_PROJECTION)
+		glLoadIdentity()
+		glEnable(GL_DEPTH_TEST)
+		gluPerspective(60, self.openGLWidget.width() / self.openGLWidget.height(), 0.1, 100.)
+
+		self.reset_camera()
+		self.restore()
+		self.timer.start()
+
+	def resize_gl(self, _weight, _height):
+		self.initialize_gl()
+
+	def paint_gl(self):
+		glMatrixMode(GL_MODELVIEW)
+		glLoadIdentity()
+		glViewport(0, 0, self.openGLWidget.width() * 2, self.openGLWidget.height() * 2)
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+		CAMERA.translate()
+		Mesh.world_axes() if self.checkBox.isChecked() else None
+		glColor(1, 1, 1)
+
+		self.twist_angle += self.twist_delta * bool(self.twist_axis)
+		for i, j, k in product(range(ORDER), range(ORDER), range(ORDER)):
+			glPushMatrix()
+			if self.twist_axis:
+				twist_r, twist_l = self.twist_axis == (1, 0, 0), self.twist_axis == (-1, 0, 0)
+				twist_u, twist_d = self.twist_axis == (0, 1, 0), self.twist_axis == (0, -1, 0)
+				twist_f, twist_b = self.twist_axis == (0, 0, 1), self.twist_axis == (0, 0, -1)
+				if (twist_r and (i == ORDER - 1 or self.twist_bodily)) or (twist_l and (not i or self.twist_bodily)):
+					glRotate(self.twist_angle, *self.twist_axis)
+				if (twist_u and (j == ORDER - 1 or self.twist_bodily)) or (twist_d and (not j or self.twist_bodily)):
+					glRotate(self.twist_angle, *self.twist_axis)
+				if (twist_f and (k == ORDER - 1 or self.twist_bodily)) or (twist_b and (not k or self.twist_bodily)):
+					glRotate(self.twist_angle, *self.twist_axis)
+			glTranslate(*(np.array([i, j, k]) - (ORDER - 1) / 2))
+			cubelet_i = self.identities[i][j][k] // ORDER ** 2
+			cubelet_j = (self.identities[i][j][k] % ORDER ** 2) // ORDER
+			cubelet_k = self.identities[i][j][k] % ORDER
+			CUBELET[cubelet_i][cubelet_j][cubelet_k].draw(self.identities[i][j][k] in (26,3,11))
+			glPopMatrix()
+
+		if abs(self.twist_angle) == 90:
+			rot = self.twist_delta // abs(self.twist_delta)
+			rot *= 1 if self.twist_axis in ((1, 0, 0), (0, -1, 0), (0, 0, 1)) else -1
+			for s in SLICE[self.twist_axis] if self.twist_bodily else [SLICE[self.twist_axis][0]]:
+				self.identities[s] = np.rot90(self.identities[s], rot)
+			self.twist_axis, self.twist_angle, self.twist_delta, self.twist_bodily = None, 0, 0, False
+
+	def twist(self, act):
+		if not self.twist_axis:
+			self.twist_axis = (
+				"Rr".count(act[0]) - "Ll".count(act[0]),
+				"Uu".count(act[0]) - "Dd".count(act[0]),
+				"Ff".count(act[0]) - "Bb".count(act[0])
+			)
+			self.twist_angle = 0
+			self.twist_delta = (1 if act[-1] == "'" else -1) * 6
+			self.twist_bodily = act.islower()
+
+
+
+
+
+
+	def restore(self):
+		self.identities = IDENTITY.copy()
+		self.twist_axis, self.twist_angle, self.twist_delta, self.twist_bodily = None, 0, 0, False
+
+
+
+	def cfop(self):
+		pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	def keyPressEvent(self, a0):
+		if a0.key() == Qt.Key.Key_Up:
+			CAMERA.translate("U")
+		elif a0.key() == Qt.Key.Key_Down:
+			CAMERA.translate("D")
+		elif a0.key() == Qt.Key.Key_Left:
+			CAMERA.translate("L")
+		elif a0.key() == Qt.Key.Key_Right:
+			CAMERA.translate("R")
+
+	def mousePressEvent(self, a0):
+		self.mouse_pos = a0.pos()
+
+	def mouseMoveEvent(self, a0):
+		mouse_previous = np.array([self.mouse_pos.x(), self.mouse_pos.y()])
+		mouse_current = np.array([a0.pos().x(), a0.pos().y()])
+		mouse_change = mouse_current - mouse_previous
+		CAMERA.rotate(-mouse_change[0], mouse_change[1])
+		self.mouse_pos = a0.pos()
+
+	def wheelEvent(self, a0):
+		if a0.angleDelta().y() > 0:
+			CAMERA.scaled(1)
+		elif a0.angleDelta().y() < 0:
+			CAMERA.scaled(-1)
+
+
+
+
+	@staticmethod
+	def reset_camera():
+		pass
+		#CAMERA.forward, CAMERA.right, CAMERA.up = FORWARD, RIGHT, UP
+		#CAMERA.eye, CAMERA.yaw, CAMERA.pitch = EYE, YAW, PITCH
+		#print(CAMERA.eye)
+		#gluLookAt(*CAMERA.eye, *(CAMERA.eye + CAMERA.forward), *CAMERA.up)
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+	app = QApplication(sys.argv)
+	my_core = MyCore()
+	my_core.show()
+	sys.exit(app.exec())
