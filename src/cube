@@ -5,22 +5,18 @@ from engine import *
 from functools import partial
 from itertools import product
 import numpy as np
+import re
 import sys
 import util
 
-models = Model.load(util.join_path(util.RESOURCE, "cube", "cube.obj"))
 CAMERA = Camera()
+CUBELET = Model.mirror()
 
 ORDER = 3
-OGI, OGJ, OGK = np.ogrid[:ORDER,:ORDER,:ORDER]
+IDENTITY = np.array([[[i * ORDER ** 2 + j * ORDER + k for k in range(ORDER)] for j in range(ORDER)] for i in range(ORDER)])
+SPIN = np.zeros((ORDER, ORDER, ORDER, 3), dtype=int)
 
-
-CUBELET = [[[Mesh(models)] * ORDER for _ in range(ORDER)] for _ in range(ORDER)]
-IDENTITY = OGI * ORDER ** 2 + OGJ * ORDER + OGK
-ROTATION = np.zeros((ORDER, ORDER, ORDER, 3), dtype=int)
-
-
-
+REGEX = re.compile("^[RrUuFfLlDdBb]['2]?$")
 SLICE = {
 	(1, 0, 0): [(i,) for i in range(ORDER)][::-1],
 	(-1, 0, 0): [(i,) for i in range(ORDER)],
@@ -31,26 +27,27 @@ SLICE = {
 }
 
 
-
 class MyCore(QMainWindow, Ui_MainWindow):
-	identities = None
+	identities, spins = None, None
 	twist_axis, twist_angle, twist_delta, twist_bodily = None, None, None, None
 	mouse_pos = None
+	acts = []
 
-
-
+	count = 0
 
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../cube/cube"))
 
+		util.button(self.toolButton_replay, self.replay, "replay")
+
 		util.button(self.pushButton_reset_camera, self.reset_camera)
 		for act, a, offset in product("RUFLDB", " 0", (0, 32)):
 			button_name = f"toolButton_{chr(ord(act) + offset)}{a}".strip()
 			if hasattr(self, button_name):
 				button = getattr(self, button_name)
-				util.button(button, partial(self.twist, act=(chr(ord(act) + offset) + a).replace("0", "'")))
+				util.button(button, partial(self.acts.append, (chr(ord(act) + offset) + a).replace("0", "'")))
 				button.setStyleSheet("font-size: 30px")
 
 		self.openGLWidget.initializeGL = self.initialize_gl
@@ -58,7 +55,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.openGLWidget.paintGL = self.paint_gl
 
 		util.button(self.pushButton_restore, self.restore)
-		util.button(self.pushButton_cfop, self.cfop)
+
 
 		self.timer = QTimer()
 		self.timer.setInterval(15)
@@ -68,55 +65,107 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 
-	def initialize_gl(self):
+	def initialize_gl(self, reset=True):
 		glMatrixMode(GL_PROJECTION)
 		glLoadIdentity()
 		glEnable(GL_DEPTH_TEST)
 		gluPerspective(60, self.openGLWidget.width() / self.openGLWidget.height(), 0.1, 100.)
 
-		self.reset_camera()
-		self.restore()
+		self.restore() if reset else None
 		self.timer.start()
 
 	def resize_gl(self, _weight, _height):
-		self.initialize_gl()
+		self.initialize_gl(reset=False)
+		#self.paint_gl()
 
 	def paint_gl(self):
 		glMatrixMode(GL_MODELVIEW)
 		glLoadIdentity()
-		glViewport(0, 0, self.openGLWidget.width() * 2, self.openGLWidget.height() * 2)
-
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 		CAMERA.translate()
-		Mesh.world_axes() if self.checkBox.isChecked() else None
+
+		if self.checkBox.isChecked():
+			Mesh.world_axes()
 		glColor(1, 1, 1)
 
+		if not self.twist_axis and self.acts:
+			self.twist(self.acts.pop(0))
 		self.twist_angle += self.twist_delta * bool(self.twist_axis)
-		for i, j, k in product(range(ORDER), range(ORDER), range(ORDER)):
+
+		for i, j, k in product(range(ORDER), repeat=3):
+			identity = self.identities[i][j][k]
+			cubelet = (identity // ORDER ** 2, (identity % ORDER ** 2) // ORDER, identity % ORDER)
+
 			glPushMatrix()
-			if self.twist_axis:
-				twist_r, twist_l = self.twist_axis == (1, 0, 0), self.twist_axis == (-1, 0, 0)
-				twist_u, twist_d = self.twist_axis == (0, 1, 0), self.twist_axis == (0, -1, 0)
-				twist_f, twist_b = self.twist_axis == (0, 0, 1), self.twist_axis == (0, 0, -1)
-				if (twist_r and (i == ORDER - 1 or self.twist_bodily)) or (twist_l and (not i or self.twist_bodily)):
-					glRotate(self.twist_angle, *self.twist_axis)
-				if (twist_u and (j == ORDER - 1 or self.twist_bodily)) or (twist_d and (not j or self.twist_bodily)):
-					glRotate(self.twist_angle, *self.twist_axis)
-				if (twist_f and (k == ORDER - 1 or self.twist_bodily)) or (twist_b and (not k or self.twist_bodily)):
-					glRotate(self.twist_angle, *self.twist_axis)
-			glTranslate(*(np.array([i, j, k]) - (ORDER - 1) / 2))
-			cubelet_i = self.identities[i][j][k] // ORDER ** 2
-			cubelet_j = (self.identities[i][j][k] % ORDER ** 2) // ORDER
-			cubelet_k = self.identities[i][j][k] % ORDER
-			CUBELET[cubelet_i][cubelet_j][cubelet_k].draw(self.identities[i][j][k] in (26,3,11))
+			self._rotate(i, j, k, cubelet)
+			self._translate(i, j, k)
+			self._spin(i, j, k, cubelet)
+			self._draw(identity, cubelet)
 			glPopMatrix()
 
 		if abs(self.twist_angle) == 90:
-			rot = self.twist_delta // abs(self.twist_delta)
-			rot *= 1 if self.twist_axis in ((1, 0, 0), (0, -1, 0), (0, 0, 1)) else -1
-			for s in SLICE[self.twist_axis] if self.twist_bodily else [SLICE[self.twist_axis][0]]:
-				self.identities[s] = np.rot90(self.identities[s], rot)
+			self._transform()
+
+
+			self.count += 1
 			self.twist_axis, self.twist_angle, self.twist_delta, self.twist_bodily = None, 0, 0, False
+
+
+
+
+
+	def _rotate(self, i, j, k, cubelet):
+		twist_r = self.twist_axis == (1, 0, 0) and (i == ORDER - 1 or self.twist_bodily)
+		twist_l = self.twist_axis == (-1, 0, 0) and (i == 0 or self.twist_bodily)
+		twist_u = self.twist_axis == (0, 1, 0) and (j == ORDER - 1 or self.twist_bodily)
+		twist_d = self.twist_axis == (0, -1, 0) and (j == 0 or self.twist_bodily)
+		twist_f = self.twist_axis == (0, 0, 1) and (k == ORDER - 1 or self.twist_bodily)
+		twist_b = self.twist_axis == (0, 0, -1) and (k == 0 or self.twist_bodily)
+		if twist_r or twist_l or twist_u or twist_d or twist_f or twist_b:
+			glRotate(self.twist_angle, *self.twist_axis)
+
+		spin_angle = np.array([twist_r or twist_l, twist_u or twist_d, twist_f or twist_b]) * self.twist_delta
+		self.spins[cubelet[0]][cubelet[1]][cubelet[2]] += spin_angle
+		self.spins[cubelet[0]][cubelet[1]][cubelet[2]] %= 360
+
+	@staticmethod
+	def _translate(i, j, k):
+		glTranslate(*(np.array([i, j, k]) - (ORDER - 1) / 2))
+
+	def _spin(self, i, j, k, cubelet):
+		twist_r = self.twist_axis == (1, 0, 0) and (i == ORDER - 1 or self.twist_bodily)
+		twist_l = self.twist_axis == (-1, 0, 0) and (i == 0 or self.twist_bodily)
+		twist_u = self.twist_axis == (0, 1, 0) and (j == ORDER - 1 or self.twist_bodily)
+		twist_d = self.twist_axis == (0, -1, 0) and (j == 0 or self.twist_bodily)
+		twist_f = self.twist_axis == (0, 0, 1) and (k == ORDER - 1 or self.twist_bodily)
+		twist_b = self.twist_axis == (0, 0, -1) and (k == 0 or self.twist_bodily)
+
+		#if k == 2:
+		print(twist_f, k == 2)
+		if k == 2:
+			if self.count % 4 == 1:
+				glRotate(270, 0, 0, 1)
+			if self.count % 4 == 2:
+				glRotate(180, 0, 0, 1)
+			if self.count % 4 == 3:
+				glRotate(90, 0, 0, 1)
+		if k == 0:
+			if self.count % 4 == 1:
+				glRotate(-270, 0, 0, 1)
+			if self.count % 4 == 2:
+				glRotate(-180, 0, 0, 1)
+			if self.count % 4 == 3:
+				glRotate(-90, 0, 0, 1)
+
+	def _transform(self):
+		rot = self.twist_delta // abs(self.twist_delta)
+		rot *= 1 if self.twist_axis in ((1, 0, 0), (0, -1, 0), (0, 0, 1)) else -1
+		for s in SLICE[self.twist_axis][:ORDER * self.twist_bodily + 1]:
+			self.identities[s] = np.rot90(self.identities[s], rot)
+
+	@staticmethod
+	def _draw(identity, cubelet):
+		CUBELET[cubelet[0]][cubelet[1]][cubelet[2]].draw(identity in (0, 2, 6, 8, 18, 20, 24, 26))
 
 	def twist(self, act):
 		if not self.twist_axis:
@@ -135,13 +184,28 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 	def restore(self):
-		self.identities = IDENTITY.copy()
+		self.reset_camera()
+		self.identities, self.spins = IDENTITY.copy(), SPIN.copy()
 		self.twist_axis, self.twist_angle, self.twist_delta, self.twist_bodily = None, 0, 0, False
 
 
 
-	def cfop(self):
-		pass
+	def replay(self):
+		self.acts.clear()
+		acts = [a.strip() for a in self.lineEdit.text().split(" ") if a.strip()]
+		for a in acts:
+			a = a.strip()
+			if not a:
+				continue
+
+			if not REGEX.fullmatch(a):
+				return util.dialog("公式输入有误", "error")
+
+			self.acts.append(a)
+			if a[-1] == "2":
+				self.acts.append(a)
+
+
 
 
 
@@ -192,10 +256,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		#CAMERA.eye, CAMERA.yaw, CAMERA.pitch = EYE, YAW, PITCH
 		#print(CAMERA.eye)
 		#gluLookAt(*CAMERA.eye, *(CAMERA.eye + CAMERA.forward), *CAMERA.up)
-
-
-
-
 
 
 
