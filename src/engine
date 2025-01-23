@@ -1,8 +1,8 @@
 from OpenGL.GL import *
 from OpenGL.GLU import *
+from itertools import product
 import math
 import numpy as np
-import util
 
 SENSITIVITY_TRANSLATION = 0.15
 SENSITIVITY_ROTATION = 0.1
@@ -16,22 +16,69 @@ EYE = np.array([0., 0., 0.])
 YAW = -90
 PITCH = 0
 
+VERTICES = [[[[
+	[i - 0.5, j - 0.5, k - 0.5] for i, j, k in product(range(2), repeat=3)
+] for _ in range(3)] for _ in range(3)] for _ in range(3)]
+FACES = [
+	(1, 2, 0), (1, 2, 3), (1, 4, 0), (1, 4, 5),
+	(1, 7, 3), (1, 7, 5), (2, 4, 0), (2, 4, 6),
+	(2, 7, 3), (2, 7, 6), (4, 7, 5), (4, 7, 6)
+]
+
 
 class Model:
+	'''
 	@staticmethod
 	def load(path):
 		vertices, faces = [], []
-		for line in util.FileIO.read(path).splitlines():
-			if line.startswith("v "):
-				vertices.append(tuple(float(v) for v in line[2:].split()))
-			if line.startswith("f "):
-				faces.append(tuple(int(f.split("/")[0]) - 1 for f in line[2:].split()))
+		with open(path, mode="r") as file:
+			for line in file.read().splitlines():
+				if line.startswith("v "):
+					vertices.append(tuple(float(v) for v in line[2:].split()))
+				if line.startswith("f "):
+					faces.append(tuple(int(f.split("/")[0]) - 1 for f in line[2:].split()))
 		return vertices, faces
+	'''
+
+	@staticmethod
+	def cube():
+		points = VERTICES.copy()
+		cubelets = [[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)]
+		for i, j, k in product(range(3), range(3), range(3)):
+			point = points[i][j][k]
+			cubelets[i][j][k].vertices = [(point[p][0], point[p][1], point[p][2]) for p in range(8)]
+			cubelets[i][j][k].faces = FACES.copy()
+		return cubelets
+
+	@staticmethod
+	def mirror():
+		points = VERTICES.copy()
+		for i, j, k, p in product(range(3), range(3), range(3), range(8)):
+			if i == 0 and p < 4:
+				points[i][j][k][p][0] += 0.2
+			if i == 2 and p >= 4:
+				points[i][j][k][p][0] += 0.4
+			if j == 0 and p % 4 < 2:
+				points[i][j][k][p][1] -= 0.5
+			if j == 2 and p % 4 >= 2:
+				points[i][j][k][p][1] -= 0.3
+			if k == 0 and p % 2 == 0:
+				points[i][j][k][p][2] -= 0.6
+			if k == 2 and p % 2 != 0:
+				points[i][j][k][p][2] -= 0.4
+
+		cubelets = [[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)]
+		for i, j, k in product(range(3), range(3), range(3)):
+			point = points[i][j][k]
+			cubelets[i][j][k].vertices = [(round(point[p][0], 1), round(point[p][1], 1), round(point[p][2], 1)) for p in range(8)]
+			cubelets[i][j][k].faces = FACES.copy()
+		return cubelets
 
 
 class Mesh:
-	def __init__(self, model):
-		self.vertices, self.faces = model
+	def __init__(self, vertices=None, faces=None):
+		self.vertices = vertices
+		self.faces = faces
 
 	def draw(self, fill=False):
 		glPushMatrix()
