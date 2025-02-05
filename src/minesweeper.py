@@ -185,7 +185,7 @@ class MyStatic:
 	@staticmethod
 	def reset(x, y):
 		mine_poses = [(i, j) for i, j in product(range(my_core.row_count), range(my_core.col_count))]
-		for i, j in product(range(-2, 3), range(-2, 3)):
+		for i, j in product(range(-2, 3), repeat=2):
 			if MyStatic.is_valid_pos(x + i, y + j):
 				mine_poses.remove((x + i, y + j))
 		mine_poses = random.sample(mine_poses, my_core.mine_count)
@@ -202,8 +202,7 @@ class MyStatic:
 
 	@staticmethod
 	def around(x, y):
-		iterator = product(range(-1, 2), range(-1, 2))
-		return [(x + i, y + j) for i, j in iterator if MyStatic.is_valid_pos(x + i, y + j) and (i or j)]
+		return [(x + i, y + j) for i, j in product(range(-1, 2), repeat=2) if MyStatic.is_valid_pos(x + i, y + j) and (i or j)]
 
 	@staticmethod
 	def message(self):
