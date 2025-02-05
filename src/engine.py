@@ -42,36 +42,33 @@ class Model:
 
 	@staticmethod
 	def cube():
-		points = VERTICES.copy()
-		cubelets = [[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)]
-		for i, j, k in product(range(3), range(3), range(3)):
-			point = points[i][j][k]
-			cubelets[i][j][k].vertices = [(point[p][0], point[p][1], point[p][2]) for p in range(8)]
-			cubelets[i][j][k].faces = FACES.copy()
+		points = np.array(VERTICES.copy())
+		cubelets = np.array([[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)])
+		for i, j, k in product(range(3), repeat=3):
+			coordinate = i, j, k
+			point = points[*coordinate]
+			cubelets[*coordinate].vertices = [(point[p, 0], point[p, 1], point[p, 2]) for p in range(8)]
+			cubelets[*coordinate].faces = FACES.copy()
 		return cubelets
 
 	@staticmethod
 	def mirror():
-		points = VERTICES.copy()
-		for i, j, k, p in product(range(3), range(3), range(3), range(8)):
-			if i == 0 and p < 4:
-				points[i][j][k][p][0] += 0.2
-			if i == 2 and p >= 4:
-				points[i][j][k][p][0] += 0.4
-			if j == 0 and p % 4 < 2:
-				points[i][j][k][p][1] -= 0.5
-			if j == 2 and p % 4 >= 2:
-				points[i][j][k][p][1] -= 0.3
-			if k == 0 and p % 2 == 0:
-				points[i][j][k][p][2] -= 0.6
-			if k == 2 and p % 2 != 0:
-				points[i][j][k][p][2] -= 0.4
+		points = np.array(VERTICES.copy())
+		for (i, j, k), p in product(product(range(3), repeat=3), range(8)):
+			coordinate = i, j, k, p
+			points[*coordinate, 0] += 0.2 if i == 0 and p < 4 else 0
+			points[*coordinate, 0] += 0.4 if i == 2 and p >= 4 else 0
+			points[*coordinate, 1] -= 0.5 if j == 0 and p % 4 < 2 else 0
+			points[*coordinate, 1] -= 0.3 if j == 2 and p % 4 >= 2 else 0
+			points[*coordinate, 2] -= 0.6 if k == 0 and p % 2 == 0 else 0
+			points[*coordinate, 2] -= 0.4 if k == 2 and p % 2 != 0 else 0
 
-		cubelets = [[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)]
-		for i, j, k in product(range(3), range(3), range(3)):
-			point = points[i][j][k]
-			cubelets[i][j][k].vertices = [(round(point[p][0], 1), round(point[p][1], 1), round(point[p][2], 1)) for p in range(8)]
-			cubelets[i][j][k].faces = FACES.copy()
+		cubelets = np.array([[[Mesh() for _ in range(3)] for _ in range(3)] for _ in range(3)])
+		for i, j, k in product(range(3), repeat=3):
+			coordinate = i, j, k
+			point = points[*coordinate]
+			cubelets[*coordinate].vertices = [(round(point[p, 0], 1), round(point[p, 1], 1), round(point[p, 2], 1)) for p in range(8)]
+			cubelets[*coordinate].faces = FACES.copy()
 		return cubelets
 
 
@@ -83,7 +80,19 @@ class Mesh:
 	def draw(self, fill=False):
 		glPushMatrix()
 		for f in self.faces:
-			glBegin(GL_POLYGON if fill else GL_LINE_LOOP)
+			if fill and f in ((4, 7, 5), (4, 7, 6)):
+				glColor(1, 0, 0)
+				draw_type = GL_POLYGON
+			elif fill and f in ((2, 7, 3), (2, 7, 6)):
+				glColor(0, 1, 0)
+				draw_type = GL_POLYGON
+			elif fill and f in ((1, 7, 3), (1, 7, 5)):
+				glColor(0, 0, 1)
+				draw_type = GL_POLYGON
+			else:
+				glColor(1, 1, 1)
+				draw_type = GL_LINE_LOOP
+			glBegin(draw_type)
 			for v in f:
 				glVertex3fv(self.vertices[v])
 			glEnd()
