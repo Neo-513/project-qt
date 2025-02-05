@@ -11,7 +11,7 @@ FRAME = 10
 FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 
 GROOVE_SIZE, GAP_SIZE = 100, 15
-GROOVE = {(i, j): (j * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE, i * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE) for i, j in product(range(4), range(4))}
+GROOVE = {(i, j): (j * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE, i * (GROOVE_SIZE + GAP_SIZE) + GAP_SIZE) for i, j in product(range(4), repeat=2)}
 CANVAS_SIZE = GROOVE_SIZE * 4 + GAP_SIZE * 5
 WINDOW_SIZE = CANVAS_SIZE + 18, CANVAS_SIZE + 20
 
@@ -82,7 +82,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.timer.setProperty("frame", 0)
 		self.timer.start()
 
-		for i, j in product(range(4), range(4)):
+		for i, j in product(range(4), repeat=2):
 			if self.field[i][j] == 2048:
 				util.dialog("You won", "success")
 				return self.restart()
@@ -90,7 +90,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.field != previous:
 			self.add(random.choice((2, 4)))
 
-		for i, j in product(range(4), range(4)):
+		for i, j in product(range(4), repeat=2):
 			if not self.field[i][j]:
 				return
 			if i and self.field[i][j] == self.field[i - 1][j]:
@@ -102,7 +102,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.restart()
 
 	def add(self, num):
-		x, y = random.choice([(i, j) for i, j in product(range(4), range(4)) if not self.field[i][j]])
+		x, y = random.choice([(i, j) for i, j in product(range(4), repeat=2) if not self.field[i][j]])
 		self.field[x][y] = num
 
 	def merge(self, trans):
