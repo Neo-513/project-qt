@@ -33,8 +33,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	mouse_pos = None
 	acts = []
 
-	count = 0
-
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -76,7 +74,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	def resize_gl(self, _weight, _height):
 		self.initialize_gl(reset=False)
-		#self.paint_gl()
 
 	def paint_gl(self):
 		glMatrixMode(GL_MODELVIEW)
@@ -93,71 +90,84 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.twist_angle += self.twist_delta * bool(self.twist_axis)
 
 		for i, j, k in product(range(ORDER), repeat=3):
-			identity = self.identities[i][j][k]
+			coordinate = i, j, k
+			identity = self.identities[*coordinate]
 			cubelet = (identity // ORDER ** 2, (identity % ORDER ** 2) // ORDER, identity % ORDER)
 
 			glPushMatrix()
-			self._rotate(i, j, k, cubelet)
-			self._translate(i, j, k)
-			self._spin(i, j, k, cubelet)
+			self._rotate(coordinate)
+			self._translate(coordinate)
+			self._spin(cubelet)
 			self._draw(identity, cubelet)
 			glPopMatrix()
 
 		if abs(self.twist_angle) == 90:
 			self._transform()
-
-
-			self.count += 1
 			self.twist_axis, self.twist_angle, self.twist_delta, self.twist_bodily = None, 0, 0, False
 
 
 
-
-
-	def _rotate(self, i, j, k, cubelet):
-		twist_r = self.twist_axis == (1, 0, 0) and (i == ORDER - 1 or self.twist_bodily)
-		twist_l = self.twist_axis == (-1, 0, 0) and (i == 0 or self.twist_bodily)
-		twist_u = self.twist_axis == (0, 1, 0) and (j == ORDER - 1 or self.twist_bodily)
-		twist_d = self.twist_axis == (0, -1, 0) and (j == 0 or self.twist_bodily)
-		twist_f = self.twist_axis == (0, 0, 1) and (k == ORDER - 1 or self.twist_bodily)
-		twist_b = self.twist_axis == (0, 0, -1) and (k == 0 or self.twist_bodily)
+	def _rotate(self, coordinate):
+		twist_r = self.twist_axis == (1, 0, 0) and (coordinate[0] == ORDER - 1 or self.twist_bodily)
+		twist_l = self.twist_axis == (-1, 0, 0) and (coordinate[0] == 0 or self.twist_bodily)
+		twist_u = self.twist_axis == (0, 1, 0) and (coordinate[1] == ORDER - 1 or self.twist_bodily)
+		twist_d = self.twist_axis == (0, -1, 0) and (coordinate[1] == 0 or self.twist_bodily)
+		twist_f = self.twist_axis == (0, 0, 1) and (coordinate[2] == ORDER - 1 or self.twist_bodily)
+		twist_b = self.twist_axis == (0, 0, -1) and (coordinate[2] == 0 or self.twist_bodily)
 		if twist_r or twist_l or twist_u or twist_d or twist_f or twist_b:
 			glRotate(self.twist_angle, *self.twist_axis)
 
-		spin_angle = np.array([twist_r or twist_l, twist_u or twist_d, twist_f or twist_b]) * self.twist_delta
-		self.spins[cubelet[0]][cubelet[1]][cubelet[2]] += spin_angle
-		self.spins[cubelet[0]][cubelet[1]][cubelet[2]] %= 360
-
 	@staticmethod
-	def _translate(i, j, k):
-		glTranslate(*(np.array([i, j, k]) - (ORDER - 1) / 2))
+	def _translate(coordinate):
+		glTranslate(*(np.array(coordinate) - (ORDER - 1) / 2))
 
-	def _spin(self, i, j, k, cubelet):
-		twist_r = self.twist_axis == (1, 0, 0) and (i == ORDER - 1 or self.twist_bodily)
-		twist_l = self.twist_axis == (-1, 0, 0) and (i == 0 or self.twist_bodily)
-		twist_u = self.twist_axis == (0, 1, 0) and (j == ORDER - 1 or self.twist_bodily)
-		twist_d = self.twist_axis == (0, -1, 0) and (j == 0 or self.twist_bodily)
-		twist_f = self.twist_axis == (0, 0, 1) and (k == ORDER - 1 or self.twist_bodily)
-		twist_b = self.twist_axis == (0, 0, -1) and (k == 0 or self.twist_bodily)
+	def _spin(self, cubelet):
+		if self.spins[*cubelet, 0] > 0:
+			glRotate(self.spins[*cubelet, 0], *(-1, 0, 0))
 
-		#if k == 2:
-		print(twist_f, k == 2)
-		if k == 2:
-			if self.count % 4 == 1:
-				glRotate(270, 0, 0, 1)
-			if self.count % 4 == 2:
-				glRotate(180, 0, 0, 1)
-			if self.count % 4 == 3:
-				glRotate(90, 0, 0, 1)
-		if k == 0:
-			if self.count % 4 == 1:
-				glRotate(-270, 0, 0, 1)
-			if self.count % 4 == 2:
-				glRotate(-180, 0, 0, 1)
-			if self.count % 4 == 3:
-				glRotate(-90, 0, 0, 1)
+
+		if self.spins[*cubelet, 0] < 0:
+			glRotate(self.spins[*cubelet, 0], *(1, 0, 0))
+
+		if self.spins[*cubelet, 1] > 0:
+			glRotate(self.spins[*cubelet, 1], *(0, -1, 0))
+		if self.spins[*cubelet, 1] < 0:
+			glRotate(self.spins[*cubelet, 1], *(0, 1, 0))
+
+		if self.spins[*cubelet, 2] > 0:
+			glRotate(self.spins[*cubelet, 2], *(0, 0, -1))
+		if self.spins[*cubelet, 2] < 0:
+			glRotate(self.spins[*cubelet, 2], *(0, 0, 1))
 
 	def _transform(self):
+		for i, j, k in product(range(ORDER), repeat=3):
+			twist_r = self.twist_axis == (1, 0, 0) and (i == ORDER - 1 or self.twist_bodily)
+			twist_l = self.twist_axis == (-1, 0, 0) and (i == 0 or self.twist_bodily)
+			twist_u = self.twist_axis == (0, 1, 0) and (j == ORDER - 1 or self.twist_bodily)
+			twist_d = self.twist_axis == (0, -1, 0) and (j == 0 or self.twist_bodily)
+			twist_f = self.twist_axis == (0, 0, 1) and (k == ORDER - 1 or self.twist_bodily)
+			twist_b = self.twist_axis == (0, 0, -1) and (k == 0 or self.twist_bodily)
+
+			coordinate = i, j, k
+			identity = self.identities[*coordinate]
+			cubelet = (identity // ORDER ** 2, (identity % ORDER ** 2) // ORDER, identity % ORDER)
+
+			rot = (self.twist_delta // abs(self.twist_delta)) * 90
+			if twist_r or twist_l:
+				self.spins[*cubelet] += (rot, 0, 0)
+			if twist_u or twist_d:
+				self.spins[*cubelet] += (0, rot, 0)
+			if twist_f or twist_b:
+				self.spins[*cubelet] += (0, 0, rot)
+
+			if cubelet == (2, 2, 2):
+				print(self.spins[*cubelet])
+
+
+
+
+
+
 		rot = self.twist_delta // abs(self.twist_delta)
 		rot *= 1 if self.twist_axis in ((1, 0, 0), (0, -1, 0), (0, 0, 1)) else -1
 		for s in SLICE[self.twist_axis][:ORDER * self.twist_bodily + 1]:
@@ -165,7 +175,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	@staticmethod
 	def _draw(identity, cubelet):
-		CUBELET[cubelet[0]][cubelet[1]][cubelet[2]].draw(identity in (0, 2, 6, 8, 18, 20, 24, 26))
+		#fill = identity in (0, 2, 6, 8, 18, 20, 24, 26)
+		fill = identity == 26
+		#fill = False
+		CUBELET[*cubelet].draw(fill)
 
 	def twist(self, act):
 		if not self.twist_axis:
@@ -221,13 +234,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 	def keyPressEvent(self, a0):
-		if a0.key() == Qt.Key.Key_Up:
+		if a0.key() == Qt.Key.Key_Up or a0.key() == Qt.Key.Key_W:
 			CAMERA.translate("U")
-		elif a0.key() == Qt.Key.Key_Down:
+		elif a0.key() == Qt.Key.Key_Down or a0.key() == Qt.Key.Key_S:
 			CAMERA.translate("D")
-		elif a0.key() == Qt.Key.Key_Left:
+		elif a0.key() == Qt.Key.Key_Left or a0.key() == Qt.Key.Key_A:
 			CAMERA.translate("L")
-		elif a0.key() == Qt.Key.Key_Right:
+		elif a0.key() == Qt.Key.Key_Right or a0.key() == Qt.Key.Key_D:
 			CAMERA.translate("R")
 
 	def mousePressEvent(self, a0):
