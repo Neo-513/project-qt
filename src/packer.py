@@ -85,10 +85,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.comboBox.addItem("")
 		for file_name in QDir(folder_path).entryList(["*.py"], QDir.Filter.Files, QDir.SortFlag.Name):
-			if file_name != "util.py" and not file_name.endswith("_ui.py"):
-				file_path = util.join_path(folder_path, file_name)
-				icon_path = self.logos.get(file_path, "")
-				self.comboBox.addItem(QIcon(icon_path), file_name[:-3])
+			ui_path = util.join_path(folder_path, f"{file_name[:-3]}_ui.py")
+			file_path = util.join_path(folder_path, file_name)
+			if not file_name.endswith("_ui.py") and os.path.exists(ui_path):
+				self.comboBox.addItem(QIcon(self.logos.get(file_path, "")), file_name[:-3])
 		self.comboBox.setMaxVisibleItems(self.comboBox.count())
 
 	def pack(self):
