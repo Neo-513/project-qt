@@ -203,8 +203,8 @@ class MyThread(QThread):
 						try:
 							for feedback in sp.stdout:
 								util.cast(self.signal_update1).emit(feedback.strip()) if feedback.strip() else None
-						except:
-							util.cast(self.signal_update1).emit("* 未知输出???")
+						except Exception as e:
+							util.cast(self.signal_update1).emit(f"[Exception] {e}")
 						if sp.wait():
 							return util.cast(self.signal_finish).emit(False)
 			else:
