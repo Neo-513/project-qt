@@ -9,90 +9,159 @@ import random
 import sys
 import util
 
-FRAME_COUNT = 10
 FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
+GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
 
-GROOVE_SIZE, GAP_SIZE = 100, 15
-PIECE_SIZE = GROOVE_SIZE + GAP_SIZE
-GROOVE = {(i, j): (j * PIECE_SIZE + GAP_SIZE, i * PIECE_SIZE + GAP_SIZE) for i, j in product(range(4), repeat=2)}
-CANVAS_SIZE = PIECE_SIZE * 4 + GAP_SIZE
-WINDOW_SIZE = CANVAS_SIZE + 18, CANVAS_SIZE + 20
+MOVEMENT = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
+ROTATE = {"L": 0, "R": 2, "U": 1, "D": -1}
+TRANS = {"L": lambda x, y: (x, y), "R": lambda x, y: (3 - x, 3 - y), "U": lambda x, y: (y, 3 - x), "D": lambda x, y: (3 - y, x)}
 
-COLOR_SKELETON = QColor(187, 173, 160)
-COLOR_NUM = QColor(118, 110, 101)
 COLOR = {
 	0: QColor(205, 193, 180), 2: QColor(238, 228, 218), 4: QColor(237, 224, 200), 8: QColor(242, 177, 121),
 	16: QColor(245, 149, 99), 32: QColor(246, 124, 95), 64: QColor(246, 94, 59), 128: QColor(237, 207, 114),
-	256: QColor(237, 204, 97), 512: QColor(228, 192, 42), 1024: QColor(226, 186, 19), 2048: QColor(236, 196, 0)
+	256: QColor(237, 204, 97), 512: QColor(228, 192, 42), 1024: QColor(226, 186, 19), 2048: QColor(236, 196, 0),
+	"skeleton": QColor(187, 173, 160), "tile": QColor(118, 110, 101)
 }
-
-KEYS = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
-ROTATE = {"L": 0, "R": 2, "U": 1, "D": -1}
-TRANS = {"L": lambda x, y: (x, y), "R": lambda x, y: (3 - x, 3 - y), "U": lambda x, y: (y, 3 - x), "D": lambda x, y: (3 - y, x)}
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
 	board = np.zeros((4, 4), dtype=int)
-	skeleton = None
-	my_thread = None
+	skeleton, my_thread, mouse_pos = None, None, None
 
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../game2048/2048"))
 
+		util.button(self.pushButton, self.restart)
+		util.button(self.toolButton_hinting, self.hinting, "../game2048/bulb", tip="提示", ico_size=24)
+		util.button(self.toolButton_botting, self.botting, "../game2048/brain", tip="AI托管", ico_size=24)
+		self.label.mousePressEvent = self.mouse_press
+		self.label.mouseReleaseEvent = self.mouse_release
+
 		self.timer = QTimer()
 		self.timer.setInterval(15)
 		util.cast(self.timer).timeout.connect(self.draw)
 
-		self.skeleton = QPixmap(CANVAS_SIZE, CANVAS_SIZE)
-		self.skeleton.fill(COLOR_SKELETON)
+		self.skeleton = QPixmap(self.label.minimumSize())
+		self.skeleton.fill(COLOR["skeleton"])
 		with QPainter(self.skeleton) as painter:
 			painter.setPen(Qt.PenStyle.NoPen)
 			painter.setBrush(COLOR[0])
-			for pos in GROOVE.values():
-				painter.drawRect(QRect(*pos, GROOVE_SIZE, GROOVE_SIZE))
+			for groove in GROOVE.values():
+				painter.drawRect(QRect(*groove, 100, 100))
 		self.label.setPixmap(self.skeleton)
-		self.statusbar.showMessage("按 Enter 重新开始")
 		self.restart()
 
 	def restart(self):
+		if self.my_thread:
+			self.toolButton_botting.setIcon(util.icon("../game2048/brain"))
+			self.toolButton_botting.setToolTip("AI托管")
+			self.my_thread.terminate()
+			self.my_thread = None
 		self.board.fill(0)
-		self.board = MyCore.add(self.board, 2)
-		self.board = MyCore.add(self.board, 2)
+		self.board = MyQ.add(self.board)
+		self.board = MyQ.add(self.board)
 		self.display()
 
-	def keyPressEvent(self, a0):
-		if a0.key() == Qt.Key.Key_F6:
-			self.test()
-			return
-
-		if self.timer.isActive():
-			return
-		if a0.key() == Qt.Key.Key_Return:
-			return self.restart()
-		if a0.key() not in KEYS:
-			return
-		
-		movement = KEYS[util.cast(a0.key())]
-		self.board, trails = MyCore.moving(self.board, movement)
+	def step(self, movement):
+		self.board, trails = MyQ.moving(self.board, movement)
 
 		self.timer.setProperty("frame", 0)
 		self.timer.setProperty("trails", trails)
 		self.timer.start()
 
-		if 2048 in self.board:
+		if MyQ.win(self.board):
 			util.dialog("You win", "success")
 			return self.restart()
-		if MyCore.lose(self.board):
+		if MyQ.lose(self.board):
 			util.dialog("You lose", "error")
 			return self.restart()
 
-	def test(self):
-		self.my_thread = MyThread()
-		self.my_thread.start()
+	def keyPressEvent(self, a0):
+		if self.timer.isActive():
+			return
+		if self.my_thread:
+			return
+		if a0.key() not in MOVEMENT:
+			return
+		self.step(MOVEMENT[util.cast(a0.key())])
+
+	def mouse_press(self, event):
+		self.mouse_pos = event.pos()
+
+	def mouse_release(self, event):
+		if self.timer.isActive():
+			return
+		if self.my_thread:
+			return
+		if not self.mouse_pos:
+			return
+
+		delta_x = event.pos().x() - self.mouse_pos.x()
+		delta_y = event.pos().y() - self.mouse_pos.y()
+		self.mouse_pos = None
+
+		if abs(delta_x) >= abs(delta_y):
+			movement = "R" if delta_x >= 0 else "L"
+		else:
+			movement = "D" if delta_y >= 0 else "U"
+		self.step(movement)
+
+	def hinting(self):
+		if self.timer.isActive():
+			return
+		if self.my_thread:
+			return
+		self.step(Algorithm.infer(self.board))
+
+	def botting(self):
+		if self.my_thread:
+			self.toolButton_botting.setIcon(util.icon("../game2048/brain"))
+			self.toolButton_botting.setToolTip("AI托管")
+			self.my_thread.terminate()
+			self.my_thread = None
+		else:
+			self.toolButton_botting.setIcon(util.icon("../game2048/terminate"))
+			self.toolButton_botting.setToolTip("取消AI托管")
+			self.my_thread = MyThread()
+			self.my_thread.start()
+
+	def display(self):
+		pixmap = self.skeleton.copy()
+		with QPainter(pixmap) as painter:
+			painter.setFont(FONT)
+			for groove, pos in GROOVE.items():
+				self.dye(painter, self.board[groove], pos)
+		self.label.setPixmap(pixmap)
+
+	def draw(self):
+		self.timer.setProperty("frame", self.timer.property("frame") + 1)
+		if self.timer.property("frame") > 10:
+			self.timer.stop()
+			return self.display()
+
+		offset = self.timer.property("frame") / 10
+		pixmap = self.skeleton.copy()
+		with QPainter(pixmap) as painter:
+			painter.setFont(FONT)
+			for start, end, tile in self.timer.property("trails"):
+				(sx, sy), (ex, ey) = GROOVE[start], GROOVE[end]
+				pos = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
+				self.dye(painter, tile, pos)
+		self.label.setPixmap(pixmap)
+
+	@staticmethod
+	def dye(painter, tile, pos):
+		rect = QRect(*pos, 100, 100)
+		painter.setPen(Qt.PenStyle.NoPen)
+		painter.setBrush(COLOR[tile])
+		painter.drawRect(rect)
+		painter.setPen(COLOR["tile"])
+		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(tile).strip("0"))
 
 
+class MyQ:
 	@staticmethod
 	def moving(board, movement):
 		previous = board.copy()
@@ -100,13 +169,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		trans = TRANS[movement]
 
 		board = np.rot90(board, rotate)
-		board, trails = MyCore.merge(board, trans)
+		board, trails = MyQ.merge(board, trans)
 		board = np.rot90(board, -rotate)
 
 		if 2048 not in board and board.tolist() != previous.tolist():
-			board = MyCore.add(board)
+			board = MyQ.add(board)
 		return board, trails
-
+	
 	@staticmethod
 	def merge(board, trans):
 		following, merged, trails = [[] for _ in range(4)], [False] * 4, []
@@ -125,56 +194,49 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		return board, trails
 	
 	@staticmethod
-	def add(board, tile=None):
-		if tile is None:
-			tile = 2 if random.random() < 0.9 else 4
+	def add(board):
 		empty_cells = np.argwhere(board == 0)
-		board[tuple(random.choice(empty_cells))] = tile
+		board[tuple(random.choice(empty_cells))] = 2 if random.random() < 0.9 else 4
 		return board
+
+	@staticmethod
+	def win(board):
+		return 2048 in board
 
 	@staticmethod
 	def lose(board):
 		return 0 not in board and not any(0 in np.diff(f) for f in np.concatenate((board, board.T)))
 
-	def display(self):
-		pixmap = self.skeleton.copy()
-		with QPainter(pixmap) as painter:
-			painter.setFont(FONT)
-			for f, pos in GROOVE.items():
-				self.dye(painter, self.board[f], pos)
-		self.label.setPixmap(pixmap)
 
-	def draw(self):
-		self.timer.setProperty("frame", self.timer.property("frame") + 1)
-		if self.timer.property("frame") > FRAME_COUNT:
-			self.timer.stop()
-			return self.display()
+class MyThread(QThread):
+	signal_update = pyqtSignal()
+	running = True
 
-		offset = self.timer.property("frame") / FRAME_COUNT
-		pixmap = self.skeleton.copy()
-		with QPainter(pixmap) as painter:
-			painter.setFont(FONT)
-			for start, end, tile in self.timer.property("trails"):
-				(sx, sy), (ex, ey) = GROOVE[start], GROOVE[end]
-				pos = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
-				self.dye(painter, tile, pos)
-		self.label.setPixmap(pixmap)
+	def __init__(self):
+		super().__init__()
+		util.cast(self.signal_update).connect(self.update)
+
+	def run(self):
+		while self.running and not MyQ.win(my_core.board) and not MyQ.lose(my_core.board):
+			util.cast(self.signal_update).emit()
+			self.msleep(400)
 
 	@staticmethod
-	def dye(painter, tile, pos):
-		rect = QRect(*pos, GROOVE_SIZE, GROOVE_SIZE)
-		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(COLOR[tile])
-		painter.drawRect(rect)
-		painter.setPen(COLOR_NUM)
-		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(tile).strip("0"))
+	def update():
+		my_core.step(Algorithm.infer(my_core.board))
+
+	def terminate(self):
+		self.running = False
+		self.wait()
 
 
 class Algorithm:
 	@staticmethod
 	def evaluate(board):
-		empty_count = np.sum(board == 0)
+		empty_tiles = np.sum(board == 0)
+
 		max_tile = np.max(board)
+
 		corner_priority = max_tile in (board[0, 0], board[0, 3], board[3, 0], board[3, 3])
 
 		monotonicity = 0
@@ -191,17 +253,21 @@ class Algorithm:
 			if j and board[i, j] == board[i, j - 1]:
 				merge_potential += 1
 
-		return empty_count * 2 + math.log2(max_tile) * 5 + corner_priority * 5 + monotonicity + merge_potential
+		smoothness = 0
+
+		#print("A", empty_count, max_tile, corner_priority, monotonicity, merge_potential)
+		#print("B", empty_count * 2, math.log2(max_tile) * 5, corner_priority * 5, monotonicity, merge_potential)
+		return empty_tiles * 3 + math.log2(max_tile) + corner_priority * 5 + monotonicity * 2 + merge_potential
 
 	@staticmethod
 	def expectimax(board, depth):
-		if not depth or MyCore.lose(board):
+		if not depth or MyQ.lose(board):
 			return Algorithm.evaluate(board)
 
 		if depth % 2:
 			score = -np.inf
 			for movement in ROTATE.keys():
-				subsequent, _ = MyCore.moving(board, movement)
+				subsequent, _ = MyQ.moving(board, movement)
 				if board.tolist() != subsequent.tolist():
 					score = max(score, Algorithm.expectimax(subsequent, depth - 1))
 			return score
@@ -223,7 +289,7 @@ class Algorithm:
 		best_score = -np.inf,
 		best_movement = None
 		for movement in ROTATE.keys():
-			subsequent, _ = MyCore.moving(board, movement)
+			subsequent, _ = MyQ.moving(board, movement)
 			if board.tolist() != subsequent.tolist():
 				score = Algorithm.expectimax(subsequent, 3)
 				if score > best_score:
@@ -232,40 +298,9 @@ class Algorithm:
 		return best_movement
 
 
-class MyThread(QThread):
-	signal_update = pyqtSignal()
-	signal_finish = pyqtSignal(str, str)
-
-	def __init__(self):
-		super().__init__()
-		util.cast(self.signal_update).connect(self.update)
-		util.cast(self.signal_finish).connect(self.finish)
-
-	def run(self):
-		my_core.restart()
-		while True:
-			if 2048 in my_core.board:
-				return util.cast(self.signal_finish).emit("You win", "success")
-			if MyCore.lose(my_core.board):
-				return util.cast(self.signal_finish).emit("You lose", "error")
-			util.cast(self.signal_update).emit()
-			self.msleep(50)
-
-	@staticmethod
-	def update():
-		movement = Algorithm.infer(my_core.board)
-		my_core.board, _ = MyCore.moving(my_core.board, movement)
-		my_core.display()
-
-	@staticmethod
-	def finish(msg, msg_type):
-		util.dialog(msg, msg_type)
-		my_core.restart()
-
-
 if __name__ == "__main__":
 	app = QApplication(sys.argv)
 	my_core = MyCore()
-	my_core.setFixedSize(*WINDOW_SIZE)
+	my_core.setFixedSize(my_core.window().size())
 	my_core.show()
 	sys.exit(app.exec())
