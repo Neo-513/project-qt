@@ -342,7 +342,7 @@ class ExpectimaxAlgorithm:
 
 
 class GeneticAlgorithm:
-	POPULATION_AMOUNT = 150
+	POPULATION_AMOUNT = 50
 	WEIGHT_AMOUNT = 6
 	GENE_SIZE = 4
 
@@ -412,7 +412,7 @@ class GeneticAlgorithm:
 
 			if 0 in ExpectimaxAlgorithm.weights:
 				scores[gene] *= 0.8
-			print(f"[EPOCH {epoch + 1:3}/{GeneticAlgorithm.EPOCH}][GENE {i + 1:2}/{len(genes)}][STEP {score:4}] SCORE: {scores[gene]} ({'WIN' if win else 'LOSE'})")
+			print(f"[EPOCH {epoch + 1:3}/{GeneticAlgorithm.EPOCH}][GENE {i + 1:3}/{len(genes)}][STEP {score:3}] SCORE: {scores[gene]} ({'WIN' if win else 'LOSE'})")
 		return scores
 
 	@staticmethod
@@ -438,6 +438,7 @@ class GeneticAlgorithm:
 			scores = GeneticAlgorithm.evaluate(mutated_genes, epoch)
 			eliminate_genes = GeneticAlgorithm.eliminate(scores)
 			reserved_genes = GeneticAlgorithm.complement(eliminate_genes, mutated_genes)
+			print({GeneticAlgorithm.weigh(gene): scores[gene] for gene in reserved_genes})
 
 
 if __name__ == "__main__":
