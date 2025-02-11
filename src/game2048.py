@@ -3,11 +3,12 @@ from PyQt6.QtCore import pyqtSignal, QRect, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from itertools import product
+from multiprocessing import Pool, cpu_count
 import numpy as np
 import random
 import sys
 import util
-#import mylibrary.myutil as mu
+import mylibrary.myutil as mu
 
 FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
@@ -259,26 +260,24 @@ class MyThread(QThread):
 
 
 class ExpectimaxAlgorithm:
-	weights = (5, 1, 1, 10, 1, 1)
+	weights = (5, 10, 0.2, 2, 2, 2)
 
 	@staticmethod
 	def evaluate(board):
 		board_t = board.T
+		board_combined = np.concatenate((board, board_t))
 
 		empty = np.sum(board == 0)
+		merge = sum(np.count_nonzero(np.diff(b[b != 0]) == 0) for b in board_combined)
 		gradient = np.sum(board * GRADIENT)
-		distribution = - np.sum(np.var(board, axis=0)) - np.sum(np.var(board, axis=1))
-
-		merge_horizontal = (board[:, :-1] == board[:, 1:]) & (board[:, :-1] != 0)
-		merge_vertical = (board[:-1, :] == board[1:, :]) & (board[:-1, :] != 0)
-		merge = np.sum(merge_horizontal) + np.sum(merge_vertical)
+		distribution = - np.var(board, axis=0).sum() - np.var(board, axis=1).sum()
 
 		monotonicity = 0
-		for b in np.concatenate((board, board_t)):
+		for b in board_combined:
 			nonzero = b[b != 0]
-			if len(nonzero) >= 3:
+			if len(nonzero) >= 2:
 				diffs = np.diff(nonzero)
-				monotonicity += all(diffs >= 0) or all(diffs <= 0)
+				monotonicity += all(diffs >= 0) * 2 or all(diffs <= 0)
 
 		smoothness_horizontal = np.abs(np.diff(board))
 		smoothness_horizontal[board[:, :-1] * board[:, 1:] == 0] = 0
@@ -288,25 +287,25 @@ class ExpectimaxAlgorithm:
 
 		return (
 			ExpectimaxAlgorithm.weights[0] * empty +
-			ExpectimaxAlgorithm.weights[1] * gradient +
-			ExpectimaxAlgorithm.weights[2] * distribution +
-			ExpectimaxAlgorithm.weights[3] * merge +
+			ExpectimaxAlgorithm.weights[1] * merge +
+			ExpectimaxAlgorithm.weights[2] * gradient +
+			ExpectimaxAlgorithm.weights[3] * distribution +
 			ExpectimaxAlgorithm.weights[4] * monotonicity +
 			ExpectimaxAlgorithm.weights[5] * smoothness
 		)
 
 	@staticmethod
-	def search(board, depth):
+	def search_deeply(board, depth, max_depth):
 		if MyMatrixer.lose(board):
-			return -np.inf
-		if depth >= 3:
+			return -1000
+		if depth >= max_depth:
 			return ExpectimaxAlgorithm.evaluate(board)
 		if not depth % 2:
 			score = -np.inf
 			for movement in MOVEMENT:
 				subsequent, _ = MyMatrixer.moving(board, movement)
 				if not np.array_equal(board, subsequent):
-					score = max(score, ExpectimaxAlgorithm.search(subsequent, depth + 1))
+					score = max(score, ExpectimaxAlgorithm.search_deeply(subsequent, depth + 1, max_depth))
 			return score
 		else:
 			empty_cells = tuple(np.argwhere(board == 0))
@@ -318,24 +317,32 @@ class ExpectimaxAlgorithm:
 					for tile, prob in {2: 0.9, 4: 0.1}.items():
 						subsequent = board.copy()
 						subsequent[tuple(empty_cell)] = tile
-						score += prob * ExpectimaxAlgorithm.search(subsequent, depth + 1)
+						score += prob * ExpectimaxAlgorithm.search_deeply(subsequent, depth + 1, max_depth)
 				return score / len(empty_cells)
+
+	@staticmethod
+	def search(board, movement):
+		subsequent, _ = MyMatrixer.moving(board, movement)
+		if not np.array_equal(board, subsequent):
+			max_depth = 3 if np.count_nonzero(board == 0) < 5 else 2
+			score = ExpectimaxAlgorithm.search_deeply(subsequent, 0, max_depth)
+			return score, movement
+		return -np.inf, None
 
 	@staticmethod
 	#@mu.Decorator.timing
 	def infer(board):
+		global pool
+		results = pool.starmap(ExpectimaxAlgorithm.search, [(board, movement) for movement in MOVEMENT])
 		best_score, best_movement = -np.inf, None
-		for movement in MOVEMENT:
-			subsequent, _ = MyMatrixer.moving(board, movement)
-			if not np.array_equal(board, subsequent):
-				score = ExpectimaxAlgorithm.search(subsequent, 0)
-				if score >= best_score:
-					best_score, best_movement = score, movement
+		for score, movement in results:
+			if score >= best_score:
+				best_score, best_movement = score, movement
 		return best_movement
 
 
 class GeneticAlgorithm:
-	POPULATION_AMOUNT = 50
+	POPULATION_AMOUNT = 150
 	WEIGHT_AMOUNT = 6
 	GENE_SIZE = 4
 
@@ -382,21 +389,17 @@ class GeneticAlgorithm:
 		scores = {}
 		for i, gene in enumerate(genes):
 			ExpectimaxAlgorithm.weights = GeneticAlgorithm.weigh(gene)
-			if 0 in ExpectimaxAlgorithm.weights:
-				scores[gene] = 0
-				continue
-
 			MyMatrixer.reset(GeneticAlgorithm.board)
 			score = 0
 
 			while True:
 				if MyMatrixer.win(GeneticAlgorithm.board):
 					scores[gene] = score + np.max(GeneticAlgorithm.board) * 10 + 100
-					print("[WIN]")
+					win = True
 					break
 				if MyMatrixer.lose(GeneticAlgorithm.board):
 					scores[gene] = score + np.max(GeneticAlgorithm.board) * 10
-					print("[LOSE]")
+					win = False
 					break
 
 				movement = ExpectimaxAlgorithm.infer(GeneticAlgorithm.board)
@@ -406,7 +409,10 @@ class GeneticAlgorithm:
 				if not np.array_equal(GeneticAlgorithm.board, previous):
 					MyMatrixer.add(GeneticAlgorithm.board)
 				score += 1
-				print(f"[EPOCH {epoch + 1:3}/{GeneticAlgorithm.EPOCH}][GENE {i + 1:2}/{len(genes)}][STEP {score:4}] MOVEMENT: {movement} SCORES: {scores}")
+
+			if 0 in ExpectimaxAlgorithm.weights:
+				scores[gene] *= 0.8
+			print(f"[EPOCH {epoch + 1:3}/{GeneticAlgorithm.EPOCH}][GENE {i + 1:2}/{len(genes)}][STEP {score:4}] SCORE: {scores[gene]} ({'WIN' if win else 'LOSE'})")
 		return scores
 
 	@staticmethod
@@ -435,8 +441,10 @@ class GeneticAlgorithm:
 
 
 if __name__ == "__main__":
+	pool = Pool(processes=cpu_count())
 	app = QApplication(sys.argv)
 	my_core = MyCore()
 	my_core.setFixedSize(my_core.window().size())
-	my_core.show()
+	#my_core.show()
+	GeneticAlgorithm.train()
 	sys.exit(app.exec())
