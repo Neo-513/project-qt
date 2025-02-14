@@ -1,5 +1,3 @@
-import os.path
-
 from game2048_ui import Ui_MainWindow
 from PyQt6.QtCore import pyqtSignal, QRect, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
@@ -7,6 +5,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow
 from itertools import product
 from multiprocessing import cpu_count, Pool
 import numpy as np
+import os
 import random
 import sys
 import util
@@ -27,20 +26,9 @@ COLOR = {
 	8: QColor(237, 204, 97), 9: QColor(228, 192, 42), 10: QColor(226, 186, 19), 11: QColor(236, 196, 0),
 }
 
-GRADIENT = np.array([
-	[0.6, 0.5, 0.4, 0.3],
-	[0.5, 0.4, 0.3, 0.2],
-	[0.4, 0.3, 0.2, 0.1],
-	[0.3, 0.2, 0.1, 0.0]
-])
-
-
-
-WEIGHTS = (3, 5, 2, 2, 2, 2)
-
-
 
 class MyCore(QMainWindow, Ui_MainWindow):
+	WEIGHTS = (11, 13, 5, 6, 5)
 	board = None
 	skeleton, my_thread, mouse_pos = None, None, None
 
@@ -105,7 +93,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 		if self.my_thread:
 			return
-		movement = ExpectimaxAlgorithm.infer(self.board, WEIGHTS)
+		movement = ExpectimaxAlgorithm.infer(self.board, MyCore.WEIGHTS)
 		self.step(movement)
 
 	def botting(self):
@@ -247,7 +235,7 @@ class MyThread(QThread):
 
 	@staticmethod
 	def update():
-		movement = ExpectimaxAlgorithm.infer(my_core.board, WEIGHTS)
+		movement = ExpectimaxAlgorithm.infer(my_core.board, MyCore.WEIGHTS)
 		my_core.step(movement)
 
 	@staticmethod
@@ -271,92 +259,79 @@ class MyThread(QThread):
 class ExpectimaxAlgorithm:
 	@staticmethod
 	def evaluate(board, weights):
-		board_t = board.T
-		board_combined = np.concatenate((board, board_t))
-
-		empty = np.sum(board == 0)
-		merge = sum(np.count_nonzero(np.diff(b[b != 0]) == 0) for b in board_combined)
-		gradient = np.sum(board * GRADIENT)
-		distribution = - np.var(board, axis=0).sum() - np.var(board, axis=1).sum()
-
-		monotonicity = 0
-		for b in board_combined:
-			nonzero = b[b != 0]
-			if len(nonzero) >= 2:
-				diffs = np.diff(nonzero)
-				monotonicity += all(diffs >= 0) * 2 or all(diffs <= 0)
+		potential_merge = 0
+		for movement in MOVEMENT:
+			subsequent, _ = MyMatrixer.moving(board.copy(), movement)
+			combined = np.concatenate((subsequent, subsequent.T))
+			potential_merge += sum(np.count_nonzero(np.diff(c[c != 0]) == 0) for c in combined)
 
 		smoothness_horizontal = np.abs(np.diff(board))
 		smoothness_horizontal[board[:, :-1] * board[:, 1:] == 0] = 0
-		smoothness_vertical = np.abs(np.diff(board_t))
-		smoothness_vertical[board_t[:, :-1] * board_t[:, 1:] == 0] = 0
+		smoothness_vertical = np.abs(np.diff(board.T))
+		smoothness_vertical[board.T[:, :-1] * board.T[:, 1:] == 0] = 0
 		smoothness = - np.sum(smoothness_horizontal) - np.sum(smoothness_vertical)
 
 		return (
-			weights[0] * empty +
-			weights[1] * merge +
-			weights[2] * gradient +
-			weights[3] * distribution +
-			weights[4] * monotonicity +
-			weights[5] * smoothness
+			weights[0] * np.sum(board == 0) +
+			weights[1] * ((np.argmax(board) in (0, 3, 12, 15)) * np.max(board)) +
+			weights[2] * (np.sum(board) - np.sum(board[1:-1,1:-1])) +
+			weights[3] * potential_merge +
+			weights[4] * smoothness
 		)
 
 	@staticmethod
-	def search(board, depth, max_depth, weights):
+	def search(board, weights, depth, max_depth):
 		if MyMatrixer.lose(board):
-			return -1000
+			return -1000, None
 		if depth >= max_depth:
-			return ExpectimaxAlgorithm.evaluate(board, weights)
-		if not depth % 2:
-			score = -np.inf
+			return ExpectimaxAlgorithm.evaluate(board, weights), None
+		if depth % 2 == 0:
+			best_score, best_movement = -np.inf, None
 			for movement in MOVEMENT:
 				subsequent, _ = MyMatrixer.moving(board, movement)
 				if not np.array_equal(board, subsequent):
-					score = max(score, ExpectimaxAlgorithm.search(subsequent, depth + 1, max_depth, weights))
-			return score
+					score, _ = ExpectimaxAlgorithm.search(subsequent, weights, depth + 1, max_depth)
+					if score >= best_score:
+						best_score, best_movement = score, movement
+			return best_score, best_movement
 		else:
 			empty_cells = tuple(np.argwhere(board == 0))
 			if not empty_cells:
 				return ExpectimaxAlgorithm.evaluate(board, weights)
-			else:
-				score = 0
-				for empty_cell in empty_cells:
-					for tile, prob in {2: 0.9, 4: 0.1}.items():
-						subsequent = board.copy()
-						subsequent[tuple(empty_cell)] = tile
-						score += prob * ExpectimaxAlgorithm.search(subsequent, depth + 1, max_depth, weights)
-				return score / len(empty_cells)
+
+			probs = {2: 0.9 / len(empty_cells), 4: 0.1 / len(empty_cells)}
+			best_score = 0
+			for empty_cell in empty_cells:
+				for tile, prob in probs.items():
+					subsequent = board.copy()
+					subsequent[tuple(empty_cell)] = tile
+					score, _ = ExpectimaxAlgorithm.search(subsequent, weights, depth + 1, max_depth)
+					best_score += prob * score
+			return best_score, None
 
 	@staticmethod
-	#@mu.Decorator.timing
 	def infer(board, weights):
-		best_score, best_movement = -np.inf, None
-		for movement in MOVEMENT:
-			subsequent, _ = MyMatrixer.moving(board, movement)
-			if not np.array_equal(board, subsequent):
-				max_depth = 2 if np.count_nonzero(board == 0) >= 4 else 3
-				score = ExpectimaxAlgorithm.search(subsequent, 0, max_depth, weights)
-				if score >= best_score:
-					best_score, best_movement = score, movement
-		return best_movement
-
+		max_depth = 3
+		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
+		return movement
 
 
 class GeneticAlgorithm:
-	GENE_SIZE, GENE_COUNT = 4, 6
+	GENE_SIZE, GENE_COUNT = 4, 5
 	GENE_TYPE, DNA_SIZE = 2 ** GENE_SIZE, GENE_SIZE * GENE_COUNT
 
 	POPULATION_SIZE = 80
 	POPULATION_PATH = util.join_path(util.RESOURCE, "game2048", "population.pkl")
 
-	ELITE_SIZE, INFERIOR_SIZE = 5, 5
+	ELITE_SIZE, INFERIOR_SIZE = 16, 20
 	COMMON_SIZE = POPULATION_SIZE - ELITE_SIZE - INFERIOR_SIZE
 
 	CROSSOVER_RATE = 0.8
 	MUTATION_RATE = 0.1
 
-	EXTRA_FIT = 4
 	EPOCH = 50
+
+	STEP_LIMIT = 1500
 
 	@staticmethod
 	def _encode_gene():
@@ -377,23 +352,25 @@ class GeneticAlgorithm:
 		return tuple(GeneticAlgorithm._decode_gene(dna, i) for i in range(GeneticAlgorithm.GENE_COUNT))
 
 	@staticmethod
-	def _fit(epoch, i, j, weights):
-		msg = (
+	def _log(epoch, i, step, score, weights):
+		print(
 			f"EPOCH[{epoch + 1:2}/{GeneticAlgorithm.EPOCH}] "
 			f"DNA[{i + 1:2}/{GeneticAlgorithm.POPULATION_SIZE}] "
-			f"GAME[{j + 1:2}/{GeneticAlgorithm.EXTRA_FIT + 1}] %s"
+			f"STEP[{step:4}] SCORE[{score:5}] {weights}"
 		)
 
+	@staticmethod
+	def _fit(epoch, i, weights):
 		board, step = MyMatrixer.reset(), 0
 		while True:
 			if MyMatrixer.win(board):
-				score = step + np.max(board) * 5 + 100
-				print(msg % f"STEP[{step:3}] SCORE[{score:3}]")
-				return score, True
-			if MyMatrixer.lose(board):
-				score = step + np.max(board) * 5
-				print(msg % f"STEP[{step:3}] SCORE[{score:3}]")
-				return score, False
+				score = (GeneticAlgorithm.STEP_LIMIT - step) + 10000
+				GeneticAlgorithm._log(epoch, i, step, score, weights)
+				return score
+			if MyMatrixer.lose(board) or step >= GeneticAlgorithm.STEP_LIMIT:
+				score = step + np.max(board) * 20
+				GeneticAlgorithm._log(epoch, i, step, score, weights)
+				return score
 
 			movement = ExpectimaxAlgorithm.infer(board, weights)
 			previous = board.copy()
@@ -407,16 +384,12 @@ class GeneticAlgorithm:
 	def _evaluate_task(params):
 		dna, epoch, i = params
 		weights = GeneticAlgorithm._decode_dna(dna)
-		fitness, reserved = GeneticAlgorithm._fit(epoch, i, 0, weights)
-		if reserved:
-			for j in range(GeneticAlgorithm.EXTRA_FIT):
-				fitness += GeneticAlgorithm._fit(epoch, i, j + 1, weights)
-			fitness = fitness / (GeneticAlgorithm.EXTRA_FIT + 1)
+		fitness = GeneticAlgorithm._fit(epoch, i, weights)
 		return dna, fitness
 
 	@staticmethod
 	@mu.Decorator.timing
-	def _evaluate(population, epoch):
+	def _evaluate(population, epoch, pool):
 		return dict(pool.imap_unordered(GeneticAlgorithm._evaluate_task, ((dna, epoch, i) for i, dna in enumerate(population))))
 
 	@staticmethod
@@ -430,11 +403,12 @@ class GeneticAlgorithm:
 	def _crossover(population):
 		for i in range(0, len(population) // 2 * 2, 2):
 			if random.random() < GeneticAlgorithm.CROSSOVER_RATE:
-				crossover_point = random.randint(1, GeneticAlgorithm.DNA_SIZE - 1)
-				dna1 = population[i]
-				dna2 = population[i + 1]
-				population[i] = dna1[:crossover_point] + dna2[crossover_point:]
-				population[i + 1] = dna2[:crossover_point] + dna1[crossover_point:]
+				dna1, dna2 = population[i], population[i + 1]
+				population[i], population[i + 1] = "", ""
+				for j in range(GeneticAlgorithm.DNA_SIZE):
+					crossover_point = random.random()
+					population[i] += dna1[j] if crossover_point < 0.5 else dna2[j]
+					population[i + 1] += dna2[j] if crossover_point < 0.5 else dna1[j]
 		return population
 
 	@staticmethod
@@ -446,33 +420,27 @@ class GeneticAlgorithm:
 
 	@staticmethod
 	def train():
-		if os.path.exists(GeneticAlgorithm.POPULATION_PATH):
-			population = util.FileIO.read(GeneticAlgorithm.POPULATION_PATH)
-		else:
-			population = [GeneticAlgorithm._encode_dna() for _ in range(GeneticAlgorithm.POPULATION_SIZE)]
+		with Pool(processes=cpu_count()) as pool:
+			if os.path.exists(GeneticAlgorithm.POPULATION_PATH):
+				population = util.FileIO.read(GeneticAlgorithm.POPULATION_PATH).keys()
+			else:
+				population = {GeneticAlgorithm._encode_dna(): 0 for _ in range(GeneticAlgorithm.POPULATION_SIZE)}
 
-		for epoch in range(GeneticAlgorithm.EPOCH):
-			fitnesses = GeneticAlgorithm._evaluate(population, epoch)
-			util.FileIO.write(GeneticAlgorithm.POPULATION_PATH, fitnesses)
-			print(f"EPOCH:{epoch + 1:2} AVG:{sum(fitnesses.values()) // len(fitnesses):3} {fitnesses}")
+			for epoch in range(GeneticAlgorithm.EPOCH):
+				fitnesses = GeneticAlgorithm._evaluate(population, epoch, pool)
+				util.FileIO.write(GeneticAlgorithm.POPULATION_PATH, fitnesses)
+				print(f"EPOCH:{epoch + 1:2} AVG:{sum(fitnesses.values()) // len(fitnesses):3} {fitnesses}")
 
-			population_elite, population_common = GeneticAlgorithm._select(fitnesses)
-			population_crossovered = GeneticAlgorithm._crossover(population_common)
-			population_mutated = GeneticAlgorithm._mutate(population_crossovered)
-			population_newborn = [GeneticAlgorithm._encode_dna() for _ in range(GeneticAlgorithm.INFERIOR_SIZE)]
-			population = population_elite + population_mutated + population_newborn
+				population_elite, population_common = GeneticAlgorithm._select(fitnesses)
+				population_crossovered = GeneticAlgorithm._crossover(population_common)
+				population_mutated = GeneticAlgorithm._mutate(population_crossovered)
+				population_newborn = [GeneticAlgorithm._encode_dna() for _ in range(GeneticAlgorithm.INFERIOR_SIZE)]
+				population = population_elite + population_mutated + population_newborn
 
 
 if __name__ == "__main__":
-	if 0:
-		app = QApplication(sys.argv)
-		my_core = MyCore()
-		my_core.setFixedSize(my_core.window().size())
-		my_core.show()
-		sys.exit(app.exec())
-	else:
-		pool = Pool(processes=cpu_count())
-		try:
-			GeneticAlgorithm.train()
-		finally:
-			pool.close()
+	app = QApplication(sys.argv)
+	my_core = MyCore()
+	my_core.setFixedSize(my_core.window().size())
+	my_core.show()
+	sys.exit(app.exec())
