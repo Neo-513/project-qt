@@ -280,22 +280,35 @@ class MyMatrixer:
 
 class ExpectimaxAlgorithm:
 	@staticmethod
-	@mu.Decorator.timing
+	#@mu.Decorator.timing
 	#@mu.Decorator.performance
 	def infer(board, weights):
 		max_depth = 3 if np.max(board) >= 8 else 2
 		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
-		#print(ExpectimaxAlgorithm._search.cache_info(), "_search")
+		#print(ExpectimaxAlgorithm._search1.cache_info(), "_search")
 		return movement
+
 
 	@staticmethod
 	def search(board, weights, depth, max_depth):
-		return ExpectimaxAlgorithm._search(tuple(map(tuple, board)), weights, depth, max_depth)
+		if max_depth == 3:
+			return ExpectimaxAlgorithm._search1(board.tobytes(), weights, depth, max_depth)
+		else:
+			return ExpectimaxAlgorithm._search2(board, weights, depth, max_depth)
 
 	@staticmethod
 	@lru_cache(maxsize=None)
+	def _search1(board, weights, depth, max_depth):
+		return ExpectimaxAlgorithm._search(board, weights, depth, max_depth)
+
+	@staticmethod
+	def _search2(board, weights, depth, max_depth):
+		return ExpectimaxAlgorithm._search(board, weights, depth, max_depth)
+
+	@staticmethod
 	def _search(board, weights, depth, max_depth):
-		board = np.array(board)
+		if type(board) == bytes:
+			board = np.frombuffer(board, dtype=np.int8).reshape((4, 4))
 		if MyMatrixer.lose(board):
 			return -1000, None
 		if depth >= max_depth:
@@ -386,7 +399,7 @@ class GeneticAlgorithm:
 	ELITE, INFERIOR = 16, 8
 	COMMON = POPULATION - ELITE - INFERIOR
 	
-	STEP = 2000
+	STEP = 1500
 	EVALUATION = util.join_path(util.RESOURCE, "game2048", "evaluation.pkl")
 
 	@staticmethod
