@@ -2,34 +2,37 @@ from game2048_ui import Ui_MainWindow
 from PyQt6.QtCore import pyqtSignal, QRect, QThread, QTimer, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
+from functools import lru_cache
 from itertools import product
 from multiprocessing import cpu_count, Pool
 import numpy as np
 import os
 import random
 import sys
+import time
 import util
+
+
 import mylibrary.myutil as mu
 
-
-FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
-
 KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
 MOVEMENT = tuple(KEY.values())
-ROTATE = {"L": 0, "R": 2, "U": 1, "D": -1}
-TRANS = {"L": lambda x, y: (x, y), "R": lambda x, y: (3 - x, 3 - y), "U": lambda x, y: (y, 3 - x), "D": lambda x, y: (3 - y, x)}
 
-COLOR = {
-	0: QColor(205, 193, 180), 1: QColor(238, 228, 218), 2: QColor(237, 224, 200), 3: QColor(242, 177, 121),
-	4: QColor(245, 149, 99), 5: QColor(246, 124, 95), 6: QColor(246, 94, 59), 7: QColor(237, 207, 114),
-	8: QColor(237, 204, 97), 9: QColor(228, 192, 42), 10: QColor(226, 186, 19), 11: QColor(236, 196, 0),
-}
+
+PATH_MERGE = util.join_path(util.RESOURCE, "game2048", "cache_merge.pkl")
+PATH_MERGE_V = util.join_path(util.RESOURCE, "game2048", "cache_merge_v.pkl")
+PATH_MERGE_POTENTIAL = util.join_path(util.RESOURCE, "game2048", "cache_merge_potential.pkl")
+
+CACHE_MERGE = util.FileIO.read(PATH_MERGE)
+CACHE_MERGE_V = util.FileIO.read(PATH_MERGE_V)
+CACHE_MERGE_POTENTIAL = util.FileIO.read(PATH_MERGE_POTENTIAL)
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	WEIGHTS = (11, 13, 5, 6, 5)
-	board = None
+	#WEIGHT = (11, 13, 5, 6, 5)
+	WEIGHT = (11, 13, 5, 6, 2)
+	board = np.zeros((4, 4), dtype=np.int8)
 	skeleton, my_thread, mouse_pos = None, None, None
 
 	def __init__(self):
@@ -55,7 +58,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.timer.stop()
 		if self.my_thread:
 			MyThread.thread_terminate(self)
-		self.board = MyMatrixer.reset()
+		MyMatrixer.reset(self.board)
 		MyDisplayer.display(self)
 
 	def keyPressEvent(self, a0):
@@ -93,7 +96,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 		if self.my_thread:
 			return
-		movement = ExpectimaxAlgorithm.infer(self.board, MyCore.WEIGHTS)
+		movement = ExpectimaxAlgorithm.infer(self.board, MyCore.WEIGHT)
 		self.step(movement)
 
 	def botting(self):
@@ -104,7 +107,14 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	def step(self, movement):
 		previous = self.board.copy()
-		self.board, trails = MyMatrixer.moving(self.board, movement)
+
+		rotate, trans = {"L": 0, "R": 2, "U": 1, "D": -1}[movement], MyDisplayer.TRANS[movement]
+		self.board = np.rot90(self.board, rotate)
+		trails = MyDisplayer.track(self.board, trans)
+		self.board = np.rot90(self.board, -rotate)
+
+
+		self.board = MyMatrixer.moving(self.board, movement)
 
 		self.timer.setProperty("frame", 0)
 		self.timer.setProperty("trails", trails)
@@ -120,17 +130,65 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return self.restart()
 
 
-class MyMatrixer:
-	@staticmethod
-	def moving(board, movement):
-		rotate, trans = ROTATE[movement], TRANS[movement]
-		board = np.rot90(board, rotate)
-		board, trails = MyMatrixer.merge(board, trans)
-		board = np.rot90(board, -rotate)
-		return board, trails
+class MyDisplayer:
+	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
+	COLOR = {
+		0: QColor(205, 193, 180), 1: QColor(238, 228, 218), 2: QColor(237, 224, 200), 3: QColor(242, 177, 121),
+		4: QColor(245, 149, 99), 5: QColor(246, 124, 95), 6: QColor(246, 94, 59), 7: QColor(237, 207, 114),
+		8: QColor(237, 204, 97), 9: QColor(228, 192, 42), 10: QColor(226, 186, 19), 11: QColor(236, 196, 0),
+	}
+
+
+	TRANS = {
+		"L": lambda x, y: (x, y), "R": lambda x, y: (3 - x, 3 - y),
+		"U": lambda x, y: (y, 3 - x), "D": lambda x, y: (3 - y, x)
+	}
 
 	@staticmethod
-	def merge(board, trans):
+	def skeletonize(self):
+		self.skeleton = QPixmap(475, 475)
+		self.skeleton.fill(QColor(187, 173, 160))
+		with QPainter(self.skeleton) as painter:
+			for groove in GROOVE.values():
+				MyDisplayer.draw(painter, 0, groove)
+
+	@staticmethod
+	def display(self):
+		pixmap = self.skeleton.copy()
+		with QPainter(pixmap) as painter:
+			painter.setFont(MyDisplayer.FONT)
+			for pos, groove in GROOVE.items():
+				MyDisplayer.draw(painter, self.board[pos], groove)
+		self.label.setPixmap(pixmap)
+
+	@staticmethod
+	def animate(self):
+		self.timer.setProperty("frame", self.timer.property("frame") + 1)
+		if self.timer.property("frame") > 10:
+			self.timer.stop()
+			return MyDisplayer.display(self)
+
+		offset = self.timer.property("frame") / 10
+		pixmap = self.skeleton.copy()
+		with QPainter(pixmap) as painter:
+			painter.setFont(MyDisplayer.FONT)
+			for ((sx, sy), (ex, ey)), tile in self.timer.property("trails"):
+				groove = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
+				MyDisplayer.draw(painter, tile, groove)
+		self.label.setPixmap(pixmap)
+
+	@staticmethod
+	def draw(painter, tile, groove):
+		rect = QRect(*groove, 100, 100)
+		painter.setPen(Qt.PenStyle.NoPen)
+		painter.setBrush(MyDisplayer.COLOR[tile])
+		painter.drawRect(rect)
+		if tile:
+			painter.setPen(QColor(118, 110, 101))
+			painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(2 ** tile))
+
+	@staticmethod
+	def track(board, trans):
 		subsequent = [[] for _ in range(4)]
 		merged = [False] * 4
 		trails = []
@@ -150,78 +208,12 @@ class MyMatrixer:
 			trail = GROOVE[trans(i, j)], GROOVE[trans(i, len(subsequent[i]) - 1)]
 			trails.append((trail, tile))
 
-		board = np.array([s + [0] * (4 - len(s)) for s in subsequent])
-		return board, tuple(trails[::])
-
-	@staticmethod
-	def reset():
-		board = np.zeros((4, 4), dtype=np.int8)
-		MyMatrixer.add(board)
-		MyMatrixer.add(board)
-		return board
-
-	@staticmethod
-	def add(board):
-		empty_cells = tuple(np.argwhere(board == 0))
-		empty_pos = tuple(random.choice(empty_cells))
-		board[empty_pos] = 1 if random.random() < 0.9 else 2
-
-	@staticmethod
-	def win(board):
-		return 11 in board
-
-	@staticmethod
-	def lose(board):
-		return (0 not in board) and (0 not in np.diff(board)) and (0 not in np.diff(board.T))
-
-
-class MyDisplayer:
-	@staticmethod
-	def skeletonize(self):
-		self.skeleton = QPixmap(475, 475)
-		self.skeleton.fill(QColor(187, 173, 160))
-		with QPainter(self.skeleton) as painter:
-			for groove in GROOVE.values():
-				MyDisplayer.draw(painter, 0, groove)
-
-	@staticmethod
-	def display(self):
-		pixmap = self.skeleton.copy()
-		with QPainter(pixmap) as painter:
-			painter.setFont(FONT)
-			for pos, groove in GROOVE.items():
-				MyDisplayer.draw(painter, self.board[pos], groove)
-		self.label.setPixmap(pixmap)
-
-	@staticmethod
-	def animate(self):
-		self.timer.setProperty("frame", self.timer.property("frame") + 1)
-		if self.timer.property("frame") > 10:
-			self.timer.stop()
-			return MyDisplayer.display(self)
-
-		offset = self.timer.property("frame") / 10
-		pixmap = self.skeleton.copy()
-		with QPainter(pixmap) as painter:
-			painter.setFont(FONT)
-			for ((sx, sy), (ex, ey)), tile in self.timer.property("trails"):
-				groove = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
-				MyDisplayer.draw(painter, tile, groove)
-		self.label.setPixmap(pixmap)
-
-	@staticmethod
-	def draw(painter, tile, groove):
-		rect = QRect(*groove, 100, 100)
-		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(COLOR[tile])
-		painter.drawRect(rect)
-		if tile:
-			painter.setPen(QColor(118, 110, 101))
-			painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(2 ** tile))
+		return tuple(trails[::])
 
 
 class MyThread(QThread):
 	signal_update = pyqtSignal()
+	dummy = None
 	running = True
 
 	def __init__(self):
@@ -229,14 +221,13 @@ class MyThread(QThread):
 		util.cast(self.signal_update).connect(self.update)
 
 	def run(self):
-		while self.running and not MyMatrixer.win(my_core.board) and not MyMatrixer.lose(my_core.board):
+		while self.running and not MyMatrixer.win(self.dummy.board) and not MyMatrixer.lose(self.dummy.board):
 			util.cast(self.signal_update).emit()
-			self.msleep(500)
+			self.msleep(200)
 
-	@staticmethod
-	def update():
-		movement = ExpectimaxAlgorithm.infer(my_core.board, MyCore.WEIGHTS)
-		my_core.step(movement)
+	def update(self):
+		movement = ExpectimaxAlgorithm.infer(self.dummy.board, MyCore.WEIGHT)
+		self.dummy.step(movement)
 
 	@staticmethod
 	def thread_run(self):
@@ -244,6 +235,7 @@ class MyThread(QThread):
 		self.toolButton_botting.setToolTip("取消AI托管")
 
 		self.my_thread = MyThread()
+		self.my_thread.dummy = self
 		self.my_thread.start()
 
 	@staticmethod
@@ -256,31 +248,54 @@ class MyThread(QThread):
 		self.my_thread = None
 
 
+class MyMatrixer:
+	@staticmethod
+	def moving(board, movement):
+		board = board.T if movement in "UD" else board
+		for i in range(4):
+			board[i] = (CACHE_MERGE if movement in "LU" else CACHE_MERGE_V)[board[i].tobytes()]
+		return board.T if movement in "UD" else board
+
+	@staticmethod
+	def reset(board):
+		board.fill(0)
+		MyMatrixer.add(board)
+		MyMatrixer.add(board)
+
+	@staticmethod
+	def add(board):
+		empty_pos = random.choice(np.argwhere(board == 0))
+		board[tuple(empty_pos)] = 1 if random.randint(1, 10) <= 9 else 2
+
+	@staticmethod
+	def win(board):
+		return 11 in board
+
+	@staticmethod
+	def lose(board):
+		return (0 not in board) and (0 not in np.diff(board)) and (0 not in np.diff(board.T))
+
+
+
+
 class ExpectimaxAlgorithm:
 	@staticmethod
-	def evaluate(board, weights):
-		potential_merge = 0
-		for movement in MOVEMENT:
-			subsequent, _ = MyMatrixer.moving(board.copy(), movement)
-			combined = np.concatenate((subsequent, subsequent.T))
-			potential_merge += sum(np.count_nonzero(np.diff(c[c != 0]) == 0) for c in combined)
-
-		smoothness_horizontal = np.abs(np.diff(board))
-		smoothness_horizontal[board[:, :-1] * board[:, 1:] == 0] = 0
-		smoothness_vertical = np.abs(np.diff(board.T))
-		smoothness_vertical[board.T[:, :-1] * board.T[:, 1:] == 0] = 0
-		smoothness = - np.sum(smoothness_horizontal) - np.sum(smoothness_vertical)
-
-		return (
-			weights[0] * np.sum(board == 0) +
-			weights[1] * ((np.argmax(board) in (0, 3, 12, 15)) * np.max(board)) +
-			weights[2] * (np.sum(board) - np.sum(board[1:-1,1:-1])) +
-			weights[3] * potential_merge +
-			weights[4] * smoothness
-		)
+	@mu.Decorator.timing
+	#@mu.Decorator.performance
+	def infer(board, weights):
+		max_depth = 3 if np.max(board) >= 8 else 2
+		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
+		#print(ExpectimaxAlgorithm._search.cache_info(), "_search")
+		return movement
 
 	@staticmethod
 	def search(board, weights, depth, max_depth):
+		return ExpectimaxAlgorithm._search(tuple(map(tuple, board)), weights, depth, max_depth)
+
+	@staticmethod
+	@lru_cache(maxsize=None)
+	def _search(board, weights, depth, max_depth):
+		board = np.array(board)
 		if MyMatrixer.lose(board):
 			return -1000, None
 		if depth >= max_depth:
@@ -288,7 +303,8 @@ class ExpectimaxAlgorithm:
 		if depth % 2 == 0:
 			best_score, best_movement = -np.inf, None
 			for movement in MOVEMENT:
-				subsequent, _ = MyMatrixer.moving(board, movement)
+				subsequent = board.copy()
+				subsequent = MyMatrixer.moving(subsequent, movement)
 				if not np.array_equal(board, subsequent):
 					score, _ = ExpectimaxAlgorithm.search(subsequent, weights, depth + 1, max_depth)
 					if score >= best_score:
@@ -310,132 +326,157 @@ class ExpectimaxAlgorithm:
 			return best_score, None
 
 	@staticmethod
-	def infer(board, weights):
-		max_depth = 3
-		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
-		return movement
+	def evaluate(board, weights):
+		potential_merge = 0
+		for movement in MOVEMENT:
+			subsequent = board.copy()
+			subsequent = MyMatrixer.moving(subsequent, movement)
+			potential_merge += sum(CACHE_MERGE_POTENTIAL[s.tobytes()] for s in np.vstack((subsequent, subsequent.T)))
+
+		diff_h = np.abs(board[:, :-1] - board[:, 1:])
+		mask_h = (board[:, :-1] != 0) & (board[:, 1:] != 0)
+		diff_v = np.abs(board[:-1, :] - board[1:, :])
+		mask_v = (board[:-1, :] != 0) & (board[1:, :] != 0)
+		smoothness = - np.sum(diff_h * mask_h) - np.sum(diff_v * mask_v)
+
+		return (
+			weights[0] * np.sum(board == 0) +
+			weights[1] * ((np.argmax(board) in (0, 3, 12, 15)) * np.max(board)) +
+			weights[2] * (np.sum(board) - np.sum(board[1:-1,1:-1])) +
+			weights[3] * potential_merge +
+			weights[4] * smoothness
+		)
+
+
+class MyPrecomputation:
+	@staticmethod
+	def compute_merge():
+		cache_merge, cache_merge_v = {}, {}
+		for tiles in product(range(12), repeat=4):
+			t, merged = [], False
+			for tile in tiles:
+				if tile == 0:
+					continue
+				if t and t[-1] == tile and not merged:
+					t[-1] += 1
+					merged = True
+				else:
+					t.append(tile)
+					merged = False
+			cache = np.array(t + [0] * (4 - len(t)))
+			cache_merge[np.array(tiles, dtype=np.int8).tobytes()] = cache
+			cache_merge_v[np.array(tiles[::-1], dtype=np.int8).tobytes()] = cache[::-1]
+		util.FileIO.write(PATH_MERGE, cache_merge)
+		util.FileIO.write(PATH_MERGE_V, cache_merge_v)
+
+	@staticmethod
+	def compute_merge_potential():
+		cache_merge_potential = {}
+		for tiles in product(range(12), repeat=4):
+			t = np.array(tiles)
+			cache_merge_potential[np.array(tiles, dtype=np.int8).tobytes()] = np.count_nonzero(np.diff(t[t != 0]) == 0)
+		util.FileIO.write(PATH_MERGE_POTENTIAL, cache_merge_potential)
 
 
 class GeneticAlgorithm:
-	GENE_SIZE, GENE_COUNT = 4, 5
-	GENE_TYPE, DNA_SIZE = 2 ** GENE_SIZE, GENE_SIZE * GENE_COUNT
+	GENE, DNA = 30, 5
+	EPOCH, POPULATION = 10, 80
+	CROSSOVER, MUTATION = 0.6, 0.1
 
-	POPULATION_SIZE = 80
-	POPULATION_PATH = util.join_path(util.RESOURCE, "game2048", "population.pkl")
-
-	ELITE_SIZE, INFERIOR_SIZE = 16, 20
-	COMMON_SIZE = POPULATION_SIZE - ELITE_SIZE - INFERIOR_SIZE
-
-	CROSSOVER_RATE = 0.8
-	MUTATION_RATE = 0.1
-
-	EPOCH = 50
-
-	STEP_LIMIT = 1500
-
-	@staticmethod
-	def _encode_gene():
-		gene = random.randint(0, GeneticAlgorithm.GENE_TYPE - 1)
-		return f"{bin(gene)[2:]:>0{GeneticAlgorithm.GENE_SIZE}}"
-
-	@staticmethod
-	def _encode_dna():
-		return "".join(GeneticAlgorithm._encode_gene() for _ in range(GeneticAlgorithm.GENE_COUNT))
-
-	@staticmethod
-	def _decode_gene(dna, i):
-		gene = dna[i * GeneticAlgorithm.GENE_SIZE:(i + 1) * GeneticAlgorithm.GENE_SIZE]
-		return int(gene, 2) + 1
-
-	@staticmethod
-	def _decode_dna(dna):
-		return tuple(GeneticAlgorithm._decode_gene(dna, i) for i in range(GeneticAlgorithm.GENE_COUNT))
-
-	@staticmethod
-	def _log(epoch, i, step, score, weights):
-		print(
-			f"EPOCH[{epoch + 1:2}/{GeneticAlgorithm.EPOCH}] "
-			f"DNA[{i + 1:2}/{GeneticAlgorithm.POPULATION_SIZE}] "
-			f"STEP[{step:4}] SCORE[{score:5}] {weights}"
-		)
-
-	@staticmethod
-	def _fit(epoch, i, weights):
-		board, step = MyMatrixer.reset(), 0
-		while True:
-			if MyMatrixer.win(board):
-				score = (GeneticAlgorithm.STEP_LIMIT - step) + 10000
-				GeneticAlgorithm._log(epoch, i, step, score, weights)
-				return score
-			if MyMatrixer.lose(board) or step >= GeneticAlgorithm.STEP_LIMIT:
-				score = step + np.max(board) * 20
-				GeneticAlgorithm._log(epoch, i, step, score, weights)
-				return score
-
-			movement = ExpectimaxAlgorithm.infer(board, weights)
-			previous = board.copy()
-			board, _ = MyMatrixer.moving(board, movement)
-
-			if not np.array_equal(board, previous):
-				MyMatrixer.add(board)
-			step += 1
-
-	@staticmethod
-	def _evaluate_task(params):
-		dna, epoch, i = params
-		weights = GeneticAlgorithm._decode_dna(dna)
-		fitness = GeneticAlgorithm._fit(epoch, i, weights)
-		return dna, fitness
-
-	@staticmethod
-	@mu.Decorator.timing
-	def _evaluate(population, epoch, pool):
-		return dict(pool.imap_unordered(GeneticAlgorithm._evaluate_task, ((dna, epoch, i) for i, dna in enumerate(population))))
-
-	@staticmethod
-	def _select(fitnesses):
-		fs = sorted(list(fitnesses.items()), key=lambda x: x[1], reverse=True)[:-GeneticAlgorithm.INFERIOR_SIZE]
-		elites = [f[0] for f in fs[:GeneticAlgorithm.ELITE_SIZE]]
-		commons = [f[0] for f in fs[GeneticAlgorithm.ELITE_SIZE:]]
-		return elites, commons
-
-	@staticmethod
-	def _crossover(population):
-		for i in range(0, len(population) // 2 * 2, 2):
-			if random.random() < GeneticAlgorithm.CROSSOVER_RATE:
-				dna1, dna2 = population[i], population[i + 1]
-				population[i], population[i + 1] = "", ""
-				for j in range(GeneticAlgorithm.DNA_SIZE):
-					crossover_point = random.random()
-					population[i] += dna1[j] if crossover_point < 0.5 else dna2[j]
-					population[i + 1] += dna2[j] if crossover_point < 0.5 else dna1[j]
-		return population
-
-	@staticmethod
-	def _mutate(population):
-		return ["".join(
-			("0" if int(locus) else "1") if random.random() < GeneticAlgorithm.MUTATION_RATE else locus
-			for locus in population[i]
-		) for i in range(len(population))]
+	ELITE, INFERIOR = 16, 8
+	COMMON = POPULATION - ELITE - INFERIOR
+	
+	STEP = 2000
+	EVALUATION = util.join_path(util.RESOURCE, "game2048", "evaluation.pkl")
 
 	@staticmethod
 	def train():
+		board = MyCore.board.copy()
 		with Pool(processes=cpu_count()) as pool:
-			if os.path.exists(GeneticAlgorithm.POPULATION_PATH):
-				population = util.FileIO.read(GeneticAlgorithm.POPULATION_PATH).keys()
+			if not os.path.exists(GeneticAlgorithm.EVALUATION):
+				population = [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.POPULATION)]
 			else:
-				population = {GeneticAlgorithm._encode_dna(): 0 for _ in range(GeneticAlgorithm.POPULATION_SIZE)}
+				population = list(util.FileIO.read(GeneticAlgorithm.EVALUATION))
 
 			for epoch in range(GeneticAlgorithm.EPOCH):
-				fitnesses = GeneticAlgorithm._evaluate(population, epoch, pool)
-				util.FileIO.write(GeneticAlgorithm.POPULATION_PATH, fitnesses)
-				print(f"EPOCH:{epoch + 1:2} AVG:{sum(fitnesses.values()) // len(fitnesses):3} {fitnesses}")
+				tictoc = time.time()
+				evaluation = dict(pool.imap_unordered(GeneticAlgorithm.fit, ((board, dna, epoch, i) for i, dna in enumerate(population))))
+				util.FileIO.write(GeneticAlgorithm.EVALUATION, evaluation)
+				print(f"WIN[{sum(int(fitness) >= 10000 for fitness in evaluation.values()):2}] TICTOC[{round(time.time() - tictoc, 2)}s]")
 
-				population_elite, population_common = GeneticAlgorithm._select(fitnesses)
-				population_crossovered = GeneticAlgorithm._crossover(population_common)
-				population_mutated = GeneticAlgorithm._mutate(population_crossovered)
-				population_newborn = [GeneticAlgorithm._encode_dna() for _ in range(GeneticAlgorithm.INFERIOR_SIZE)]
+				population_elite, population_common = GeneticAlgorithm.select(evaluation)
+				population_crossovered = GeneticAlgorithm.crossover(population_common)
+				population_mutated = GeneticAlgorithm.mutate(population_crossovered)
+				population_newborn = [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.INFERIOR)]
 				population = population_elite + population_mutated + population_newborn
+
+	@staticmethod
+	def get_population():
+		return [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.POPULATION)]
+
+	@staticmethod
+	def get_dna():
+		return tuple(GeneticAlgorithm.get_gene() for _ in range(GeneticAlgorithm.DNA))
+
+	@staticmethod
+	def get_gene():
+		return random.randint(1, GeneticAlgorithm.GENE)
+
+	@staticmethod
+	def fit(params):
+		board, weights, epoch, i = params
+		MyMatrixer.reset(board)
+		step = 0
+
+		while True:
+			step += 1
+			if MyMatrixer.win(board):
+				fitness = (GeneticAlgorithm.STEP - step) + 10000
+				GeneticAlgorithm.log(epoch, i, step, fitness, weights)
+				return weights, fitness
+			if MyMatrixer.lose(board) or step >= GeneticAlgorithm.STEP:
+				fitness = step + np.max(board) * 30
+				GeneticAlgorithm.log(epoch, i, step, fitness, weights)
+				return weights, fitness
+
+			movement = ExpectimaxAlgorithm.infer(board, weights)
+			previous = board.copy()
+			board = MyMatrixer.moving(board, movement)
+			if not np.array_equal(board, previous):
+				MyMatrixer.add(board)
+
+	@staticmethod
+	def select(evaluation):
+		evaluation = sorted(evaluation.items(), key=lambda x: x[1], reverse=True)[:-GeneticAlgorithm.INFERIOR]
+		elites = [ev[0] for ev in evaluation[:GeneticAlgorithm.ELITE]]
+		commons = [ev[0] for ev in evaluation[GeneticAlgorithm.ELITE:]]
+		return elites, commons
+
+	@staticmethod
+	def crossover(population):
+		for i in range(0, len(population) // 2 * 2, 2):
+			if random.random() < GeneticAlgorithm.CROSSOVER:
+				dna1 = list(population[i])
+				dna2 = list(population[i + 1])
+				for j in range(GeneticAlgorithm.DNA):
+					if random.random() < 0.5:
+						dna1[j], dna2[j] = dna2[j], dna1[j]
+				population[i] = tuple(dna1)
+				population[i + 1] = tuple(dna2)
+		return population
+
+	@staticmethod
+	def mutate(population):
+		return [tuple(GeneticAlgorithm.get_gene() if random.random() < GeneticAlgorithm.MUTATION else gene for gene in dna) for dna in population]
+
+	@staticmethod
+	def log(epoch, i, step, fitness, dna):
+		print(
+			f"EPOCH[{epoch + 1:2}/{GeneticAlgorithm.EPOCH}] "
+			f"DNA[{i + 1:2}/{GeneticAlgorithm.POPULATION}] "
+			f"STEP[{step:4}] FITNESS[{fitness:5}] {dna}"
+		)
+
 
 
 if __name__ == "__main__":
