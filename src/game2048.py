@@ -415,7 +415,8 @@ class GeneticAlgorithm:
 				tictoc = time.time()
 				evaluation = dict(pool.imap_unordered(GeneticAlgorithm.fit, ((board, dna, epoch, i) for i, dna in enumerate(population))))
 				util.FileIO.write(GeneticAlgorithm.EVALUATION, evaluation)
-				print(f"WIN[{sum(int(fitness) >= 10000 for fitness in evaluation.values()):2}] TICTOC[{round(time.time() - tictoc, 2)}s]")
+				print(f"TICTOC: {round(time.time() - tictoc, 2)} s")
+				print(sorted(evaluation.items(), key=lambda x: x[1], reverse=True))
 
 				population_elite, population_common = GeneticAlgorithm.select(evaluation)
 				population_crossovered = GeneticAlgorithm.crossover(population_common)
@@ -438,6 +439,14 @@ class GeneticAlgorithm:
 	@staticmethod
 	def fit(params):
 		board, weights, epoch, i = params
+		fitness = GeneticAlgorithm._fit(board, weights, epoch, i, 1, 0)
+		extra = 4 if fitness >= 10000 else 2
+		for j in range(extra):
+			fitness += GeneticAlgorithm._fit(board, weights, epoch, i, j + 2, extra + 1)
+		return weights, fitness // extra
+
+	@staticmethod
+	def _fit(board, weights, epoch, i, j, extra):
 		MyMatrixer.reset(board)
 		step = 0
 
@@ -445,12 +454,12 @@ class GeneticAlgorithm:
 			step += 1
 			if MyMatrixer.win(board):
 				fitness = (GeneticAlgorithm.STEP - step) + 10000
-				GeneticAlgorithm.log(epoch, i, step, fitness, weights)
-				return weights, fitness
+				GeneticAlgorithm.log(epoch, i, j, extra, step, fitness, weights)
+				return fitness
 			if MyMatrixer.lose(board) or step >= GeneticAlgorithm.STEP:
-				fitness = step + np.max(board) * 30
-				GeneticAlgorithm.log(epoch, i, step, fitness, weights)
-				return weights, fitness
+				fitness = (GeneticAlgorithm.STEP - step) + np.max(board) * 500
+				GeneticAlgorithm.log(epoch, i, j, extra, step, fitness, weights)
+				return fitness
 
 			movement = ExpectimaxAlgorithm.infer(board, weights)
 			previous = board.copy()
@@ -483,10 +492,11 @@ class GeneticAlgorithm:
 		return [tuple(GeneticAlgorithm.get_gene() if random.random() < GeneticAlgorithm.MUTATION else gene for gene in dna) for dna in population]
 
 	@staticmethod
-	def log(epoch, i, step, fitness, dna):
+	def log(epoch, i, j, extra, step, fitness, dna):
 		print(
 			f"EPOCH[{epoch + 1:2}/{GeneticAlgorithm.EPOCH}] "
 			f"DNA[{i + 1:2}/{GeneticAlgorithm.POPULATION}] "
+			f"GAME[{j}/{extra}] "
 			f"STEP[{step:4}] FITNESS[{fitness:5}] {dna}"
 		)
 
