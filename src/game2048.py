@@ -30,7 +30,6 @@ CACHE_MERGE_POTENTIAL = util.FileIO.read(PATH_MERGE_POTENTIAL)
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	#WEIGHT = (11, 13, 5, 6, 2)
 	WEIGHT = (19, 17, 15, 11, 30)
 	board = np.zeros((4, 4), dtype=np.int8)
 	skeleton, my_thread, mouse_pos = None, None, None
@@ -284,6 +283,7 @@ class ExpectimaxAlgorithm:
 	#@mu.Decorator.performance
 	def infer(board, weights):
 		max_depth = 3 if np.max(board) >= 8 else 2
+
 		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
 		#print(ExpectimaxAlgorithm._search1.cache_info(), "_search")
 		return movement
@@ -292,23 +292,18 @@ class ExpectimaxAlgorithm:
 	@staticmethod
 	def search(board, weights, depth, max_depth):
 		if max_depth == 3:
-			return ExpectimaxAlgorithm._search1(board.tobytes(), weights, depth, max_depth)
+			return ExpectimaxAlgorithm._search_cache(board.tobytes(), weights, depth, max_depth)
 		else:
-			return ExpectimaxAlgorithm._search2(board, weights, depth, max_depth)
+			return ExpectimaxAlgorithm._search_nocache(board, weights, depth, max_depth)
 
 	@staticmethod
 	@lru_cache(maxsize=None)
-	def _search1(board, weights, depth, max_depth):
-		return ExpectimaxAlgorithm._search(board, weights, depth, max_depth)
+	def _search_cache(board, weights, depth, max_depth):
+		board = np.frombuffer(board, dtype=np.int8).reshape((4, 4))
+		return ExpectimaxAlgorithm._search_nocache(board, weights, depth, max_depth)
 
 	@staticmethod
-	def _search2(board, weights, depth, max_depth):
-		return ExpectimaxAlgorithm._search(board, weights, depth, max_depth)
-
-	@staticmethod
-	def _search(board, weights, depth, max_depth):
-		if type(board) == bytes:
-			board = np.frombuffer(board, dtype=np.int8).reshape((4, 4))
+	def _search_nocache(board, weights, depth, max_depth):
 		if MyMatrixer.lose(board):
 			return -1000, None
 		if depth >= max_depth:
