@@ -12,13 +12,8 @@ import sys
 import time
 import util
 
-
-import mylibrary.myutil as mu
-
-GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
 KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
 MOVEMENT = tuple(KEY.values())
-
 
 PATH_MERGE = util.join_path(util.RESOURCE, "game2048", "cache_merge.pkl")
 PATH_MERGE_V = util.join_path(util.RESOURCE, "game2048", "cache_merge_v.pkl")
@@ -106,17 +101,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	def step(self, movement):
 		previous = self.board.copy()
-
-		rotate, trans = {"L": 0, "R": 2, "U": 1, "D": -1}[movement], MyDisplayer.TRANS[movement]
-		self.board = np.rot90(self.board, rotate)
-		trails = MyDisplayer.track(self.board, trans)
-		self.board = np.rot90(self.board, -rotate)
-
-
 		self.board = MyMatrixer.moving(self.board, movement)
 
 		self.timer.setProperty("frame", 0)
-		self.timer.setProperty("trails", trails)
+		self.timer.setProperty("trails", MyDisplayer.track(previous.copy(), self.board.copy(), movement))
 		self.timer.start()
 
 		if MyMatrixer.win(self.board):
@@ -130,6 +118,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 class MyDisplayer:
+	GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
 	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 	COLOR = {
 		0: QColor(205, 193, 180), 1: QColor(238, 228, 218), 2: QColor(237, 224, 200), 3: QColor(242, 177, 121),
@@ -137,7 +126,7 @@ class MyDisplayer:
 		8: QColor(237, 204, 97), 9: QColor(228, 192, 42), 10: QColor(226, 186, 19), 11: QColor(236, 196, 0),
 	}
 
-
+	ROTATE = {"L": 0, "R": 2, "U": 1, "D": -1}
 	TRANS = {
 		"L": lambda x, y: (x, y), "R": lambda x, y: (3 - x, 3 - y),
 		"U": lambda x, y: (y, 3 - x), "D": lambda x, y: (3 - y, x)
@@ -148,7 +137,7 @@ class MyDisplayer:
 		self.skeleton = QPixmap(475, 475)
 		self.skeleton.fill(QColor(187, 173, 160))
 		with QPainter(self.skeleton) as painter:
-			for groove in GROOVE.values():
+			for groove in MyDisplayer.GROOVE.values():
 				MyDisplayer.draw(painter, 0, groove)
 
 	@staticmethod
@@ -156,7 +145,7 @@ class MyDisplayer:
 		pixmap = self.skeleton.copy()
 		with QPainter(pixmap) as painter:
 			painter.setFont(MyDisplayer.FONT)
-			for pos, groove in GROOVE.items():
+			for pos, groove in MyDisplayer.GROOVE.items():
 				MyDisplayer.draw(painter, self.board[pos], groove)
 		self.label.setPixmap(pixmap)
 
@@ -187,27 +176,25 @@ class MyDisplayer:
 			painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(2 ** tile))
 
 	@staticmethod
-	def track(board, trans):
-		subsequent = [[] for _ in range(4)]
-		merged = [False] * 4
+	def track(previous, subsequent, movement):
+		rotate = MyDisplayer.ROTATE[movement]
+		trans = MyDisplayer.TRANS[movement]
+
+		previous = np.rot90(previous, rotate)
+		subsequent = np.rot90(subsequent, rotate)
+
 		trails = []
-
-		for i, j in product(range(4), repeat=2):
-			tile = board[i, j]
-			if tile == 0:
-				continue
-
-			if subsequent[i] and subsequent[i][-1] == tile and not merged[i]:
-				subsequent[i][-1] += 1
-				merged[i] = True
-			else:
-				subsequent[i].append(tile)
-				merged[i] = False
-
-			trail = GROOVE[trans(i, j)], GROOVE[trans(i, len(subsequent[i]) - 1)]
-			trails.append((trail, tile))
-
-		return tuple(trails[::])
+		for i in range(4):
+			k = 0
+			for j in range(4):
+				if previous[i, j] == 0:
+					continue
+				trails.append(((MyDisplayer.GROOVE[trans(i, j)], MyDisplayer.GROOVE[trans(i, k)]), previous[i, j]))
+				if subsequent[i, k] == previous[i, j]:
+					k += 1
+				else:
+					subsequent[i, k] -= 1
+		return trails[::-1]
 
 
 class MyThread(QThread):
