@@ -30,8 +30,8 @@ CACHE_MERGE_POTENTIAL = util.FileIO.read(PATH_MERGE_POTENTIAL)
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	#WEIGHT = (11, 13, 5, 6, 5)
-	WEIGHT = (11, 13, 5, 6, 2)
+	#WEIGHT = (11, 13, 5, 6, 2)
+	WEIGHT = (19, 17, 15, 11, 30)
 	board = np.zeros((4, 4), dtype=np.int8)
 	skeleton, my_thread, mouse_pos = None, None, None
 
