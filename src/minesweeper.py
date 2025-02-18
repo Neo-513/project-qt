@@ -25,10 +25,14 @@ APP = QApplication([])
 SCREEN_SIZE = APP.primaryScreen().size().width(), APP.primaryScreen().size().height()
 BLOCK_SIZE = 35
 
+PATH_SURROUNDING = util.join_path(util.RESOURCE, "minesweeper", "surrounding.pkl")
+CACHE_SURROUNDING = util.FileIO.read(PATH_SURROUNDING)
+
 
 class MyCore(QMainWindow, Ui_MainWindow):
 	row_count, col_count, mine_count = None, None, None
 	minefield, amount_pressed, amount_flagged = None, None, None
+	difficulty = None
 
 	def __init__(self):
 		super().__init__()
@@ -53,8 +57,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.radioButton_easy.click()
 
 	def switch(self):
-		difficulty = self.sender().objectName().split("_")[-1]
-		self.row_count, self.col_count, self.mine_count = DIFFICULTY[difficulty]
+		self.difficulty = self.sender().objectName().split("_")[-1]
+		self.row_count, self.col_count, self.mine_count = DIFFICULTY[self.difficulty]
 		row_max, col_max, _ = DIFFICULTY["hard"]
 		row_min, col_min, _ = DIFFICULTY["easy"]
 
@@ -114,7 +118,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		flagged_amount = 0
 		unflagged_pos = []
 
-		for pos in MyStatic.around(x, y):
+		for pos in CACHE_SURROUNDING[self.difficulty][x, y]:
 			widget = self.gridLayout.itemAtPosition(pos[0], pos[1]).widget()
 			if widget.status_pressed:
 				continue
@@ -135,7 +139,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def expand(self, x, y):
 		if self.minefield[x][y] == 9:
 			return self.judge(False)
-		if not MyStatic.is_valid_pos(x, y):
+		if (x, y) not in CACHE_SURROUNDING[self.difficulty]:
 			return
 
 		widget = self.gridLayout.itemAtPosition(x, y).widget()
@@ -151,7 +155,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.amount_pressed += 1
 
 		if not mine_value:
-			for pos in MyStatic.around(x, y):
+			for pos in CACHE_SURROUNDING[self.difficulty][x, y]:
 				self.expand(pos[0], pos[1])
 
 	def judge(self, win):
@@ -186,23 +190,15 @@ class MyStatic:
 	def reset(x, y):
 		mine_poses = [(i, j) for i, j in product(range(my_core.row_count), range(my_core.col_count))]
 		for i, j in product(range(-2, 3), repeat=2):
-			if MyStatic.is_valid_pos(x + i, y + j):
+			if (x + i, y + j) in CACHE_SURROUNDING[my_core.difficulty]:
 				mine_poses.remove((x + i, y + j))
 		mine_poses = random.sample(mine_poses, my_core.mine_count)
 
 		my_core.minefield = [[((i, j) in mine_poses) * 9 for j in range(my_core.col_count)] for i in range(my_core.row_count)]
 		for mine_pos in mine_poses:
-			for i, j in MyStatic.around(mine_pos[0], mine_pos[1]):
+			for i, j in CACHE_SURROUNDING[my_core.difficulty][mine_pos[0], mine_pos[1]]:
 				if my_core.minefield[i][j] != 9:
 					my_core.minefield[i][j] += 1
-
-	@staticmethod
-	def is_valid_pos(x, y):
-		return 0 <= x < my_core.row_count and 0 <= y < my_core.col_count
-
-	@staticmethod
-	def around(x, y):
-		return [(x + i, y + j) for i, j in product(range(-1, 2), repeat=2) if MyStatic.is_valid_pos(x + i, y + j) and (i or j)]
 
 	@staticmethod
 	def message(self):
@@ -249,6 +245,40 @@ class MineBlock(QPushButton):
 		for pos in self.hint_pos:
 			my_core.gridLayout.itemAtPosition(pos[0], pos[1]).widget().setStyleSheet(QSS_UNEXPLORED)
 		self.hint_pos.clear()
+
+
+class MyPrecomputation:
+	@staticmethod
+	def compute_surrounding():
+		cache_surrounding = {"easy": {}, "medium": {}, "hard": {}}
+		offset = tuple((i, j) for i, j in product(range(-1, 2), repeat=2) if (i or j))
+
+		row_easy, col_easy = DIFFICULTY["easy"][0], DIFFICULTY["easy"][1]
+		row_medium, col_medium = DIFFICULTY["medium"][0], DIFFICULTY["medium"][1]
+		row_hard, col_hard = DIFFICULTY["hard"][0], DIFFICULTY["hard"][1]
+
+		for x, y in product(range(row_hard), range(col_hard)):
+			surrounding_easy = []
+			surrounding_medium = []
+			surrounding_hard = []
+
+			for (i, j) in offset:
+				pos = x + i, y + j
+				if (0 <= x < row_easy and 0 <= y < col_easy) and (0 <= pos[0] < row_easy and 0 <= pos[1] < col_easy):
+					surrounding_easy.append(pos)
+				if (0 <= x < row_medium and 0 <= y < col_medium) and (0 <= pos[0] < row_medium and 0 <= pos[1] < col_medium):
+					surrounding_medium.append(pos)
+				if (0 <= x < row_hard and 0 <= y < col_hard) and (0 <= pos[0] < row_hard and 0 <= pos[1] < col_hard):
+					surrounding_hard.append(pos)
+
+			if surrounding_easy:
+				cache_surrounding["easy"][x, y] = surrounding_easy
+			if surrounding_medium:
+				cache_surrounding["medium"][x, y] = surrounding_medium
+			if surrounding_hard:
+				cache_surrounding["hard"][x, y] = surrounding_hard
+
+		util.FileIO.write(PATH_SURROUNDING, cache_surrounding)
 
 
 if __name__ == "__main__":
