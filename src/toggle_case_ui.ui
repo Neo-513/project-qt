@@ -16,11 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QPlainTextEdit" name="plainTextEdit">
-      <property name="placeholderText">
-       <string>按 F4 切换</string>
-      </property>
-     </widget>
+     <widget class="QPlainTextEdit" name="plainTextEdit"/>
     </item>
    </layout>
   </widget>
