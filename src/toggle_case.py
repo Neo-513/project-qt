@@ -1,6 +1,4 @@
 from toggle_case_ui import Ui_MainWindow
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import sys
 import util
@@ -12,30 +10,15 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../toggle_case/toggle_case"))
 
-	def keyPressEvent(self, a0):
-		if a0.key() != Qt.Key.Key_F4:
-			return
+	def wheelEvent(self, a0):
+		if a0.angleDelta().y() > 0:
+			self.plainTextEdit.setPlainText(self.plainTextEdit.toPlainText().upper())
+		elif a0.angleDelta().y() < 0:
+			self.plainTextEdit.setPlainText(self.plainTextEdit.toPlainText().lower())
 
 		cursor = self.plainTextEdit.textCursor()
-		text = self.plainTextEdit.toPlainText()
-
-		selected_text = cursor.selectedText()
-		start = cursor.selectionStart()
-		end = cursor.selectionEnd()
-
-		if selected_text:
-			self.plainTextEdit.setPlainText(text[:start] + self.toggle(selected_text) + text[end:])
-			cursor.setPosition(start)
-			cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
-			self.plainTextEdit.setTextCursor(cursor)
-		else:
-			self.plainTextEdit.setPlainText(self.toggle(text))
-			cursor.setPosition(end)
-			self.plainTextEdit.setTextCursor(cursor)
-
-	@staticmethod
-	def toggle(text):
-		return text.lower() if text.isupper() else text.upper()
+		cursor.movePosition(cursor.MoveOperation.End)
+		self.plainTextEdit.setTextCursor(cursor)
 
 
 if __name__ == "__main__":
