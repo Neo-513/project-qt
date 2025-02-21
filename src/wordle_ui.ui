@@ -19,7 +19,7 @@
      <layout class="QHBoxLayout" name="horizontalLayout_0">
       <item>
        <layout class="QGridLayout" name="gridLayout_0">
-        <item row="0" column="5">
+        <item row="0" column="6">
          <widget class="QLabel" name="label_04">
           <property name="minimumSize">
            <size>
@@ -29,77 +29,7 @@
           </property>
          </widget>
         </item>
-        <item row="5" column="2">
-         <widget class="QLabel" name="label_51">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="5">
-         <widget class="QLabel" name="label_24">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="4">
-         <widget class="QLabel" name="label_13">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="3">
-         <widget class="QLabel" name="label_32">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="3">
-         <widget class="QLabel" name="label_12">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="4">
-         <widget class="QLabel" name="label_03">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="2">
-         <widget class="QLabel" name="label_01">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="5">
+        <item row="4" column="6">
          <widget class="QLabel" name="label_44">
           <property name="minimumSize">
            <size>
@@ -109,77 +39,7 @@
           </property>
          </widget>
         </item>
-        <item row="5" column="3">
-         <widget class="QLabel" name="label_52">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
         <item row="2" column="2">
-         <widget class="QLabel" name="label_21">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="5">
-         <widget class="QLabel" name="label_34">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QLabel" name="label_11">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="4">
-         <widget class="QLabel" name="label_23">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QLabel" name="label_30">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="2">
-         <widget class="QLabel" name="label_41">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
          <widget class="QLabel" name="label_20">
           <property name="minimumSize">
            <size>
@@ -189,127 +49,7 @@
           </property>
          </widget>
         </item>
-        <item row="0" column="3">
-         <widget class="QLabel" name="label_02">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="5">
-         <widget class="QLabel" name="label_54">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QLabel" name="label_00">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QLabel" name="label_10">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="4">
-         <widget class="QLabel" name="label_33">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="3">
-         <widget class="QLabel" name="label_22">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="4">
-         <widget class="QLabel" name="label_53">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="5" column="1">
-         <widget class="QLabel" name="label_50">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="1">
-         <widget class="QLabel" name="label_40">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="5">
-         <widget class="QLabel" name="label_14">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="4">
-         <widget class="QLabel" name="label_43">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="4" column="3">
-         <widget class="QLabel" name="label_42">
-          <property name="minimumSize">
-           <size>
-            <width>52</width>
-            <height>52</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="2">
+        <item row="3" column="3">
          <widget class="QLabel" name="label_31">
           <property name="minimumSize">
            <size>
@@ -319,14 +59,251 @@
           </property>
          </widget>
         </item>
-        <item row="0" column="6">
-         <widget class="QToolButton" name="toolButton">
+        <item row="1" column="4">
+         <widget class="QLabel" name="label_12">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QToolButton" name="toolButton_hinting">
           <property name="styleSheet">
            <string notr="true">icon-size: 40px; border: none</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
+        <item row="3" column="2">
+         <widget class="QLabel" name="label_30">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="6">
+         <widget class="QLabel" name="label_24">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="3">
+         <widget class="QLabel" name="label_11">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="5">
+         <widget class="QLabel" name="label_03">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="5">
+         <widget class="QLabel" name="label_43">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="2">
+         <widget class="QLabel" name="label_40">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QLabel" name="label_02">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="4">
+         <widget class="QLabel" name="label_52">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="5">
+         <widget class="QLabel" name="label_13">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QLabel" name="label_10">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="3">
+         <widget class="QLabel" name="label_21">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="8">
+         <widget class="QToolButton" name="toolButton_restart">
+          <property name="styleSheet">
+           <string notr="true">icon-size: 40px; border: none</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="5">
+         <widget class="QLabel" name="label_53">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="4">
+         <widget class="QLabel" name="label_32">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="5">
+         <widget class="QLabel" name="label_23">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QLabel" name="label_00">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="4">
+         <widget class="QLabel" name="label_22">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="3">
+         <widget class="QLabel" name="label_51">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="6">
+         <widget class="QLabel" name="label_54">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="6">
+         <widget class="QLabel" name="label_34">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="2">
+         <widget class="QLabel" name="label_50">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="4">
+         <widget class="QLabel" name="label_42">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="3">
+         <widget class="QLabel" name="label_41">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
          <spacer name="horizontalSpacer_0">
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
@@ -339,7 +316,37 @@
           </property>
          </spacer>
         </item>
-        <item row="5" column="6">
+        <item row="3" column="5">
+         <widget class="QLabel" name="label_33">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="3">
+         <widget class="QLabel" name="label_01">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="6">
+         <widget class="QLabel" name="label_14">
+          <property name="minimumSize">
+           <size>
+            <width>52</width>
+            <height>52</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="7">
          <spacer name="horizontalSpacer_1">
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
