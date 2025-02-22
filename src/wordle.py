@@ -1,4 +1,4 @@
-from wordle_ui import Ui_MainWindow
+from src.wordle_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QApplication, QMainWindow
@@ -10,12 +10,7 @@ import os
 import random
 import string
 import sys
-import util
-
-
-
-import mylibrary.myutil as mu
-
+import src.util as util
 
 QSS = {
 	"label": "color: %s; background-color: %s; border: %spx solid %s",
@@ -222,30 +217,18 @@ class MyComputation:
 		return tuple(answer for answer in candidate if MyComputation.to_state(guess, answer) == state)
 
 
-
-
 class EntropyAlgorithm:
 	@staticmethod
-	@mu.Decorator.timing
 	def infer(candidate):
-		print("candidate", len(candidate))
-		best_entropy, best_guess = 0, None
-		for guess in candidate:
-			entropy = EntropyAlgorithm.to_entropy(guess, candidate)
-			print(guess, entropy)
-			if entropy >= best_entropy:
-				best_entropy, best_guess = entropy, guess
-		return best_guess
+		n, nlog = len(candidate), math.log2(len(candidate))
+		return max(candidate, key=lambda guess: EntropyAlgorithm.to_entropy(guess, candidate, n, nlog))
 
 	@staticmethod
-	def to_entropy(guess, candidate):
-		states = {}
-		states.update((MyComputation.to_state(guess, answer), 1) for answer in candidate)
-		entropy = math.log2(len(candidate)) - sum(s * math.log2(s) for s in states.values()) / len(candidate)
-		return entropy
-
-
-
+	def to_entropy(guess, candidate, n, nlog):
+		states = [MyComputation.to_state(guess, answer) for answer in candidate]
+		counts = np.bincount(np.array(states))
+		counts = counts[counts != 0]
+		return nlog - np.sum(counts * np.log2(counts)) / n
 
 
 if __name__ == "__main__":
