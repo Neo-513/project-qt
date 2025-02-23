@@ -38,15 +38,6 @@ def __compute_state(guess, answer):
 	return int("".join(state), 3)
 
 
-
-
-
-import mylibrary.myutil as mu
-
-
-
-
-@mu.Decorator.timing
 def compute_worst():
 	tasks = (guess for guess in ALLOWED_WORDS)
 	with Pool(processes=cpu_count()) as pool:
@@ -57,17 +48,13 @@ def compute_worst():
 def __compute_worst(guess):
 	candidate = MyComputation.to_candidate(guess, 0, ALLOWED_WORDS)
 	best_guess = EntropyAlgorithm.infer(candidate)
-	print(guess, len(candidate))#, best_guess)
+	print(guess, len(candidate))
 	return guess, best_guess
-
-
-
 
 
 if __name__ == "__main__":
 	# compute_index()
 	# compute_compose()
 	# compute_state()
-	#compute_worst()
-
-	print(CACHE["state"])
+	# compute_worst()
+	pass
