@@ -1,4 +1,4 @@
-from src.wordle_ui import Ui_MainWindow
+from wordle_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QApplication, QMainWindow
@@ -10,7 +10,7 @@ import os
 import random
 import string
 import sys
-import src.util as util
+import util
 
 QSS = {
 	"label": "color: %s; background-color: %s; border: %spx solid %s",
