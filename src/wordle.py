@@ -68,7 +68,7 @@ KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in string.ascii_lowerc
 class MyCore(QMainWindow, Ui_MainWindow):
 	guesses, states, alphabet = None, None, None
 	answer, inning = None, None
-	hints, candidate = None, None
+	auto_hint, hint, candidate = False, None, None
 
 	def __init__(self):
 		super().__init__()
@@ -97,13 +97,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_enter, self.send_enter)
 		util.button(self.pushButton_delete, self.send_delete)
 		util.button(self.toolButton_restart, self.restart, "../wordle/restart", tip="新游戏")
-		util.button(self.toolButton_hinting, self.hinting, "../wordle/hint", tip="提示", ico_size=32)
+		util.button(self.toolButton_hinting, self.hinting, "../wordle/nonhint", tip="提示", ico_size=32)
 		self.restart()
 
 	def restart(self):
 		self.guesses, self.states, self.alphabet = [""] * 6, [-1] * 6, set()
 		self.answer, self.inning = random.choice(POSSIBLE_WORDS), 0
-		self.hints, self.candidate = [""] * 6, ALLOWED_WORDS
+		self.hint, self.candidate = None, ALLOWED_WORDS
 
 		for label in chain.from_iterable(self.LABEL):
 			label.clear()
@@ -113,19 +113,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label_message.clear()
 
 	def hinting(self):
-		if self.label_message.text().startswith("You"):
-			return
-		if not self.inning:
-			return
-		if self.hints[self.inning]:
-			return
-
-		guess, state = self.guesses[self.inning - 1], self.states[self.inning - 1]
-		if self.inning == 1 and CACHE.get(f"worst_{TERNARY[state]}", None):
-			self.hints[self.inning] = CACHE[f"worst_{TERNARY[state]}"][guess]
-		else:
-			self.hints[self.inning] = EntropyAlgorithm.infer(self.candidate)
-		MyDisplayer.label()
+		self.auto_hint = not self.auto_hint
+		self.toolButton_hinting.setIcon(util.icon(f'../wordle/{"hint" if self.auto_hint else "nonhint"}'))
+		if not self.label_message.text().startswith("You"):
+			MyDisplayer.label()
+			MyDisplayer.hint()
 
 	def keyPressEvent(self, a0):
 		if a0.key() == Qt.Key.Key_Return:
@@ -148,10 +140,16 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		state = int(MyComputation.to_state(guess, self.answer))
 		self.states[self.inning] = state
+
 		self.candidate = MyComputation.to_candidate(guess, state, self.candidate)
+		if not self.inning and CACHE.get(f"worst_{TERNARY[state]}", None):
+			self.hint = CACHE[f"worst_{TERNARY[state]}"][guess]
+		else:
+			self.hint = EntropyAlgorithm.infer(self.candidate)
 
 		MyDisplayer.label()
 		MyDisplayer.button()
+		MyDisplayer.hint()
 		self.inning += 1
 
 		if state == 242:
@@ -166,6 +164,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.guesses[self.inning] = self.guesses[self.inning][:-1]
 		MyDisplayer.label()
+		MyDisplayer.hint()
 
 	def send_letter(self, key):
 		if self.label_message.text().startswith("You"):
@@ -175,6 +174,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if len(self.guesses[self.inning]) < 5:
 			self.guesses[self.inning] += key
 			MyDisplayer.label()
+			MyDisplayer.hint()
 
 
 class MyDisplayer:
@@ -182,7 +182,6 @@ class MyDisplayer:
 	def label():
 		guess = my_core.guesses[my_core.inning]
 		state = my_core.states[my_core.inning]
-		hint = my_core.hints[my_core.inning]
 
 		if state != -1:
 			for i, label in enumerate(my_core.LABEL[my_core.inning]):
@@ -192,11 +191,8 @@ class MyDisplayer:
 
 		for i, label in enumerate(my_core.LABEL[my_core.inning]):
 			if i < len(guess):
-				my_core.LABEL[my_core.inning][i].setText(guess[i].upper())
-				my_core.LABEL[my_core.inning][i].setStyleSheet(QSS_LABEL["text"])
-			elif hint:
-				label.setText(hint[i].upper())
-				label.setStyleSheet(QSS_LABEL["hit" if len(my_core.candidate) == 1 else "hint"])
+				label.setText(guess[i].upper())
+				label.setStyleSheet(QSS_LABEL["text"])
 			else:
 				label.clear()
 				label.setStyleSheet(QSS_LABEL["nontext"])
@@ -214,6 +210,26 @@ class MyDisplayer:
 		for i, g in enumerate(guess):
 			if state[i] == "1" and g not in my_core.alphabet:
 				my_core.BUTTON[g].setStyleSheet(QSS_BUTTON[state[i]])
+
+	@staticmethod
+	def hint():
+		guess = my_core.guesses[my_core.inning]
+		guessed = my_core.states[my_core.inning] != -1
+		qss = QSS_LABEL["hit" if len(my_core.candidate) == 1 else "hint"]
+
+		if not my_core.auto_hint:
+			return
+		if guess == my_core.answer:
+			return
+		if my_core.inning + guessed >= 6:
+			return
+		if not my_core.inning and not guessed:
+			return
+
+		for i, label in enumerate(my_core.LABEL[my_core.inning + guessed]):
+			if guessed or i >= len(guess):
+				label.setText(my_core.hint[i].upper())
+				label.setStyleSheet(qss)
 
 
 class MyComputation:
