@@ -2,8 +2,12 @@ from src.wordle import *
 from collections import Counter
 from multiprocessing import cpu_count, Pool
 
-PATH.update({"compose": util.join_path(util.RESOURCE, "wordle", "cache_compose.pkl")})
-CACHE.update({"compose": util.FileIO.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None})
+PATH.update({
+	"compose": util.join_path(util.RESOURCE, "wordle", "cache_compose.pkl")
+})
+CACHE.update({
+	"compose": util.FileIO.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None
+})
 
 
 def compute_index():
@@ -38,15 +42,16 @@ def __compute_state(guess, answer):
 	return int("".join(state), 3)
 
 
-def compute_worst():
-	tasks = (guess for guess in ALLOWED_WORDS)
+def compute_worst(worst):
+	tasks = ((guess, int(worst, 3)) for guess in ALLOWED_WORDS)
 	with Pool(processes=cpu_count()) as pool:
 		cache_worst = dict(pool.imap_unordered(__compute_worst, tasks))
-	util.FileIO.write(PATH["worst"], cache_worst)
+	util.FileIO.write(PATH[f"worst_{worst}"], cache_worst)
 
 
-def __compute_worst(guess):
-	candidate = MyComputation.to_candidate(guess, 0, ALLOWED_WORDS)
+def __compute_worst(args):
+	guess, state = args
+	candidate = MyComputation.to_candidate(guess, state, ALLOWED_WORDS)
 	best_guess = EntropyAlgorithm.infer(candidate)
 	print(guess, len(candidate))
 	return guess, best_guess
@@ -56,5 +61,10 @@ if __name__ == "__main__":
 	# compute_index()
 	# compute_compose()
 	# compute_state()
-	# compute_worst()
+	# compute_worst("00000")
+	# compute_worst("00001")
+	# compute_worst("00010")
+	# compute_worst("00100")
+	# compute_worst("01000")
+	# compute_worst("10000")
 	pass
