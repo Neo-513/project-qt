@@ -25,33 +25,43 @@ QSS_LABEL = {
 	"text": QSS["label"] % ("black", "white", 2, "rgb(135,138,140)"),
 	"hint": QSS["label"] % ("rgb(181,184,188)", "white", 2, "rgb(211,214,218)"),
 	"hit": QSS["label"] % ("rgb(200,0,0)", "white", 2, "rgb(200,0,0)"),
-	0: QSS["label"] % ("white", "rgb(120,124,126)", 0, "white"),
-	1: QSS["label"] % ("white", "rgb(198,180,86)", 0, "white"),
-	2: QSS["label"] % ("white", "rgb(112,169,97)", 0, "white")
+	"0": QSS["label"] % ("white", "rgb(120,124,126)", 0, "white"),
+	"1": QSS["label"] % ("white", "rgb(198,180,86)", 0, "white"),
+	"2": QSS["label"] % ("white", "rgb(112,169,97)", 0, "white")
 }
 QSS_BUTTON = {
 	None: QSS["button"] % ("black", "rgb(211,214,218)", "rgb(181,184,188)", "rgb(151,154,158)"),
-	0: QSS["button"] % ("white", "rgb(120,124,126)", "rgb(90,94,96)", "rgb(60,64,66)"),
-	1: QSS["button"] % ("white", "rgb(198,180,86)", "rgb(168,150,56)", "rgb(138,120,26)"),
-	2: QSS["button"] % ("white", "rgb(112,169,97)", "rgb(82,139,67)", "rgb(52,109,37)")
+	"0": QSS["button"] % ("white", "rgb(120,124,126)", "rgb(90,94,96)", "rgb(60,64,66)"),
+	"1": QSS["button"] % ("white", "rgb(198,180,86)", "rgb(168,150,56)", "rgb(138,120,26)"),
+	"2": QSS["button"] % ("white", "rgb(112,169,97)", "rgb(82,139,67)", "rgb(52,109,37)")
 }
 
 PATH = {
 	"index": util.join_path(util.RESOURCE, "wordle", "cache_index.pkl"),
 	"state": util.join_path(util.RESOURCE, "wordle", "cache_state.bin"),
-	"worst": util.join_path(util.RESOURCE, "wordle", "cache_worst.pkl")
+	"worst_00000": util.join_path(util.RESOURCE, "wordle", "cache_worst_00000.pkl"),
+	"worst_00001": util.join_path(util.RESOURCE, "wordle", "cache_worst_00001.pkl"),
+	"worst_00010": util.join_path(util.RESOURCE, "wordle", "cache_worst_00010.pkl"),
+	"worst_00100": util.join_path(util.RESOURCE, "wordle", "cache_worst_00100.pkl"),
+	"worst_01000": util.join_path(util.RESOURCE, "wordle", "cache_worst_01000.pkl"),
+	"worst_10000": util.join_path(util.RESOURCE, "wordle", "cache_worst_10000.pkl")
 }
 CACHE = {
 	"index": util.FileIO.read(PATH["index"]) if os.path.exists(PATH["index"]) else None,
 	"state": np.fromfile(PATH["state"], dtype=np.uint8) if os.path.exists(PATH["state"]) else None,
-	"worst": util.FileIO.read(PATH["worst"]) if os.path.exists(PATH["worst"]) else None
+	"worst_00000": util.FileIO.read(PATH["worst_00000"]) if os.path.exists(PATH["worst_00000"]) else None,
+	"worst_00001": util.FileIO.read(PATH["worst_00001"]) if os.path.exists(PATH["worst_00001"]) else None,
+	"worst_00010": util.FileIO.read(PATH["worst_00010"]) if os.path.exists(PATH["worst_00010"]) else None,
+	"worst_00100": util.FileIO.read(PATH["worst_00100"]) if os.path.exists(PATH["worst_00100"]) else None,
+	"worst_01000": util.FileIO.read(PATH["worst_01000"]) if os.path.exists(PATH["worst_01000"]) else None,
+	"worst_10000": util.FileIO.read(PATH["worst_10000"]) if os.path.exists(PATH["worst_10000"]) else None
 }
 
 ALLOWED_WORDS = tuple(util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "allowed_words.txt")).splitlines())
 POSSIBLE_WORDS = tuple(util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "possible_words.txt")).splitlines())
 
 TOTALITY = len(ALLOWED_WORDS)
-TERNARY = tuple(product(range(3), repeat=5))
+TERNARY = tuple("".join(map(str, t)) for t in product(range(3), repeat=5))
 KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in string.ascii_lowercase}
 
 
@@ -111,8 +121,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 
 		guess, state = self.guesses[self.inning - 1], self.states[self.inning - 1]
-		if self.inning == 1 and state == 0:
-			self.hints[self.inning] = CACHE["worst"][guess]
+		if self.inning == 1 and CACHE.get(f"worst_{TERNARY[state]}", None):
+			self.hints[self.inning] = CACHE[f"worst_{TERNARY[state]}"][guess]
 		else:
 			self.hints[self.inning] = EntropyAlgorithm.infer(self.candidate)
 		MyDisplayer.label()
@@ -196,13 +206,13 @@ class MyDisplayer:
 		guess = my_core.guesses[my_core.inning]
 		state = TERNARY[my_core.states[my_core.inning]]
 
-		for s, (i, g) in product((0, 2), enumerate(guess)):
+		for s, (i, g) in product("02", enumerate(guess)):
 			if state[i] == s:
 				my_core.BUTTON[g].setStyleSheet(QSS_BUTTON[s])
 				my_core.alphabet.add(g)
 
 		for i, g in enumerate(guess):
-			if state[i] == 1 and g not in my_core.alphabet:
+			if state[i] == "1" and g not in my_core.alphabet:
 				my_core.BUTTON[g].setStyleSheet(QSS_BUTTON[state[i]])
 
 
@@ -220,6 +230,8 @@ class MyComputation:
 class EntropyAlgorithm:
 	@staticmethod
 	def infer(candidate):
+		if not candidate:
+			return None
 		n, nlog = len(candidate), math.log2(len(candidate))
 		return max(candidate, key=lambda guess: EntropyAlgorithm.to_entropy(guess, candidate, n, nlog))
 
