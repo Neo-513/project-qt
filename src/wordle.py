@@ -229,18 +229,18 @@ class MyDisplayer:
 			labels[i].setStyleSheet(qss)
 
 	@staticmethod
-	def display_hint(dummy, labels):
-		if not dummy.show_hint:
+	def display_hint(self, labels):
+		if not self.show_hint:
 			return
-		if not dummy.hint:
+		if not self.hint:
 			return
-		if dummy.guess == dummy.answer:
+		if self.guess == self.answer:
 			return
 
-		qss = QSS_LABEL["hit" if len(dummy.candidate) == 1 else "hint"]
+		qss = QSS_LABEL["hit" if len(self.candidate) == 1 else "hint"]
 		for i, label in enumerate(labels):
-			if dummy.state is not None or i >= len(dummy.guess):
-				label.setText(dummy.hint[i].upper())
+			if self.state is not None or i >= len(self.guess):
+				label.setText(self.hint[i].upper())
 				label.setStyleSheet(qss)
 
 	@staticmethod
