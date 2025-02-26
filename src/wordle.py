@@ -81,7 +81,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.timer = QTimer()
 		self.timer.setInterval(30)
-		util.cast(self.timer).timeout.connect(self.animate)
+		util.cast(self.timer).timeout.connect(lambda: MyDisplayer.display_animate(self))
 
 		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(5)] for i in range(6)]
 		for label in chain.from_iterable(self.LABEL):
@@ -189,29 +189,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			MyDisplayer.display_clear(self.LABEL[self.inning])
 			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.inning], False)
 			MyDisplayer.display_hint(self, self.LABEL[self.inning])
-	
-	def animate(self):
-		if self.timer.frame >= 50:
-			self.timer.stop()
-			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.timer.inning], True)
-			MyDisplayer.display_hint(self, self.LABEL[self.timer.inning + 1]) if self.timer.inning <= 4 else None
-			MyDisplayer.display_button(self.guess, TERNARY[self.state], self.alphabet, self.BUTTON)
-
-			if self.guess == self.answer:
-				self.label_message.setText("You win")
-			elif self.inning >= 5:
-				self.label_message.setText("You lose! The answer is " + self.answer.upper())
-			else:
-				self.guess, self.state, self.inning = "", None, self.inning + 1
-			return
-
-		label = self.LABEL[self.timer.inning][self.timer.frame // 10]
-		pixmap = (self.timer.previous if self.timer.frame % 10 < 5 else self.timer.subsequent)[self.timer.frame // 10]
-		ratio = abs(1 - (self.timer.frame + 1) % 10 / 5)
-
-		util.cast(label).setStyleSheet(None)
-		util.cast(label).setPixmap(pixmap.scaled(pixmap.width(), int(pixmap.height() * ratio)))
-		self.timer.frame += 1
 
 
 class MyDisplayer:
@@ -244,14 +221,15 @@ class MyDisplayer:
 				label.setStyleSheet(qss)
 
 	@staticmethod
-	def display_button(guess, state, alphabet, buttons):
-		for s, (i, g) in product("02", enumerate(guess)):
+	def display_button(self):
+		state = TERNARY[self.state]
+		for s, (i, g) in product("02", enumerate(self.guess)):
 			if state[i] == s:
-				buttons[g].setStyleSheet(QSS_BUTTON[s])
-				alphabet.add(g)
-		for i, g in enumerate(guess):
-			if state[i] == "1" and g not in alphabet:
-				buttons[g].setStyleSheet(QSS_BUTTON[state[i]])
+				self.BUTTON[g].setStyleSheet(QSS_BUTTON[s])
+				self.alphabet.add(g)
+		for i, g in enumerate(self.guess):
+			if state[i] == "1" and g not in self.alphabet:
+				self.BUTTON[g].setStyleSheet(QSS_BUTTON[state[i]])
 
 	@staticmethod
 	def display_skeleton(guess, state):
@@ -272,6 +250,30 @@ class MyDisplayer:
 			with QPainter(pixmaps[i]) as painter:
 				label.render(painter)
 		return pixmaps
+
+	@staticmethod
+	def display_animate(self):
+		if self.timer.frame >= 50:
+			self.timer.stop()
+			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.timer.inning], True)
+			MyDisplayer.display_hint(self, self.LABEL[self.timer.inning + 1]) if self.timer.inning <= 4 else None
+			MyDisplayer.display_button(self)
+
+			if self.guess == self.answer:
+				self.label_message.setText("You win")
+			elif self.inning >= 5:
+				self.label_message.setText("You lose! The answer is " + self.answer.upper())
+			else:
+				self.guess, self.state, self.inning = "", None, self.inning + 1
+			return
+
+		label = self.LABEL[self.timer.inning][self.timer.frame // 10]
+		pixmap = (self.timer.previous if self.timer.frame % 10 < 5 else self.timer.subsequent)[self.timer.frame // 10]
+		ratio = abs(1 - (self.timer.frame + 1) % 10 / 5)
+
+		util.cast(label).setStyleSheet(None)
+		util.cast(label).setPixmap(pixmap.scaled(pixmap.width(), int(pixmap.height() * ratio)))
+		self.timer.frame += 1
 
 
 class MyComputation:
