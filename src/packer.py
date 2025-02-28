@@ -1,6 +1,6 @@
 from packer_ui import Ui_MainWindow
 from PyQt6.QtCore import pyqtSignal, QDir, QThread, Qt
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import os
 import subprocess
@@ -14,11 +14,9 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../packer/packer"))
+		self.setWindowIcon(util.icon("../packer/logo"))
 
-		util.select_folder(self.lineEdit_old, self.pushButton_old, self.scan)
-		util.select_folder(self.lineEdit_new, self.pushButton_new, self.command, clean=True)
-		util.select_folder(self.lineEdit_res, self.pushButton_res, self.command)
+		util.select_folder(self.lineEdit, self.pushButton_select, self.scan)
 		util.button(self.pushButton_pack, self.pack, "save")
 		self.radioButton_exe.clicked.connect(self.command)
 		self.radioButton_ui.clicked.connect(self.command)
@@ -26,75 +24,71 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		if os.path.exists("config.json"):
 			config = util.FileIO.read("config.json")["packer"]
-			self.lineEdit_old.setText(config["path_old"]) if os.path.exists(config["path_old"]) else None
-			self.lineEdit_new.setText(config["path_new"]) if os.path.exists(config["path_new"]) else None
-			self.lineEdit_res.setText(config["path_res"]) if os.path.exists(config["path_res"]) else None
-			self.logos = config["logo"]
+			self.lineEdit.setText(config["path"]) if os.path.exists(config["path"]) else None
 		self.scan()
-
-	def command(self):
-		path_old = self.lineEdit_old.text()
-		path_new = self.lineEdit_new.text()
-		path_res = self.lineEdit_res.text()
-		if not os.path.exists(path_old):
-			return self.plainTextEdit_cmd.clear()
-		if not os.path.exists(path_new):
-			return self.plainTextEdit_cmd.clear()
-		if not os.path.exists(path_res):
-			return self.plainTextEdit_cmd.clear()
-
-		file_name = self.comboBox.currentText()
-		file_path = util.join_path(path_old, f"{file_name}.py")
-		if not file_name:
-			return self.plainTextEdit_cmd.clear()
-		if not os.path.exists(file_path):
-			return self.plainTextEdit_cmd.clear()
-
-		if self.radioButton_exe.isChecked():
-			path_icon = util.join_path(path_res, self.logos.get(file_path, "*"))
-			path_global = util.join_path(path_res, "global")
-			path_extra = util.join_path(path_res, file_name)
-			self.plainTextEdit_cmd.setPlainText(
-				f'{path_old[0]}: & cd "{path_old}" &'
-				f'\npyinstaller -w -F "{file_path}"'
-				f'\n--distpath "{path_new}"'
-				f'\n--specpath "{path_new}"'
-				f'\n--workpath "{path_new}"'
-			)
-			if os.path.exists(path_icon):
-				self.plainTextEdit_cmd.appendPlainText(f'--icon="{path_icon}"')
-			if os.path.exists(path_global):
-				self.plainTextEdit_cmd.appendPlainText(f'--add-data="{path_global}":"assets/global"')
-			if os.path.exists(path_extra):
-				self.plainTextEdit_cmd.appendPlainText(f'--add-data="{path_extra}":"assets/{file_name}"')
-		elif self.radioButton_ui.isChecked():
-			path_ui = util.join_path(path_old, f"{file_name}_ui.ui")
-			path_py = util.join_path(path_old, f"{file_name}_ui.py")
-			self.plainTextEdit_cmd.setPlainText(
-				"python"
-				f'\n-m PyQt6.uic.pyuic "{path_ui}"'
-				f'\n-o "{path_py}"'
-			)
 
 	def scan(self):
 		self.comboBox.clear()
+		self.plainTextEdit_cmd.clear()
+		self.plainTextEdit_feedback.clear()
 
-		folder_path = self.lineEdit_old.text()
-		if not os.path.exists(folder_path):
-			return
+		paths = self.paths(self.lineEdit.text())
+		for path in paths.values():
+			if not os.path.exists(path):
+				return
 
 		self.comboBox.addItem("")
-		for file_name in QDir(folder_path).entryList(["*.py"], QDir.Filter.Files, QDir.SortFlag.Name):
-			ui_path = util.join_path(folder_path, f"{file_name[:-3]}_ui.py")
-			file_path = util.join_path(folder_path, file_name)
-			if not file_name.endswith("_ui.py") and os.path.exists(ui_path):
-				self.comboBox.addItem(QIcon(self.logos.get(file_path, "")), file_name[:-3])
+		for file_name in QDir(paths["src"]).entryList(["*.py"], QDir.Filter.Files, QDir.SortFlag.Name):
+			file = file_name[:-3]
+			if not os.path.exists(util.join_path(paths["src"], f"{file}_ui.py")):
+				continue
+			if file.endswith("_ui"):
+				continue
+			self.comboBox.addItem(util.icon(util.join_path(paths["static"], file, "logo")), file)
 		self.comboBox.setMaxVisibleItems(self.comboBox.count())
 
+	def command(self):
+		paths = self.paths(self.lineEdit.text())
+		for path in paths.values():
+			if not os.path.exists(path):
+				return
+
+		file = self.comboBox.currentText()
+		if self.radioButton_exe.isChecked():
+			file_path = util.join_path(paths["src"], f"{file}.py")
+			if not os.path.exists(file_path):
+				return self.plainTextEdit_cmd.clear()
+
+			self.plainTextEdit_cmd.setPlainText(
+				f'{paths["src"][:2]} & cd "{paths["src"]}" &'
+				f'\npyinstaller -w -F "{file_path}"'
+				f'\n--distpath "{paths["build"]}"'
+				f'\n--specpath "{paths["build"]}"'
+				f'\n--workpath "{paths["build"]}"'
+			)
+			self.plainTextEdit_cmd.appendPlainText(f'--icon="{util.join_path(paths["static"], file, "logo.png")}"')
+			self.plainTextEdit_cmd.appendPlainText(f'--add-data="{util.join_path(paths["static"], file)}":"static/{file}"')
+			self.plainTextEdit_cmd.appendPlainText(f'--add-data="{util.join_path(paths["static"], "common")}":"static/common"')
+		else:
+			self.plainTextEdit_cmd.setPlainText(
+				"python"
+				f'\n-m PyQt6.uic.pyuic "{util.join_path(paths["src"], f"{file}_ui.ui")}"'
+				f'\n-o "{util.join_path(paths["src"], f"{file}_ui.py")}"'
+			)
+
 	def pack(self):
+		self.command()
 		if self.plainTextEdit_cmd.toPlainText():
 			self.my_thread = MyThread()
 			self.my_thread.start()
+
+	@staticmethod
+	def paths(path):
+		return {
+			"src": util.join_path(path, "src"),
+			"build": util.join_path(path, "build"),
+			"static": util.join_path(path, "static")
+		}
 
 	def dye(self, color):
 		palette = self.plainTextEdit_feedback.palette()
@@ -114,9 +108,7 @@ class MyThread(QThread):
 		util.cast(self.signal_finish).connect(self.finish)
 
 	def run(self):
-		my_core.command()
 		cmd = my_core.plainTextEdit_cmd.toPlainText().replace("\n", " ")
-
 		util.cast(self.signal_starts).emit()
 		with subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as sp:
 			util.cast(self.signal_update).emit(f"> {cmd}")
