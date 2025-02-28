@@ -4,11 +4,11 @@ from PyQt6.QtGui import QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QSizePolicy
 from functools import partial
 from itertools import chain, product
+from string import ascii_lowercase
 import math
 import numpy as np
 import os
 import random
-import string
 import sys
 import util
 
@@ -62,7 +62,7 @@ POSSIBLE_WORDS = tuple(util.FileIO.read(util.join_path(util.RESOURCE, "wordle", 
 
 TOTALITY = len(ALLOWED_WORDS)
 TERNARY = tuple("".join(map(str, t)) for t in product(range(3), repeat=5))
-KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in string.ascii_lowercase}
+KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in ascii_lowercase}
 
 DPR = util.screen_info()["dpr"]
 PIXMAP_SIZE = 52
@@ -77,7 +77,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../wordle/mosaic"))
+		self.setWindowIcon(util.icon("../wordle/logo"))
 
 		self.timer = QTimer()
 		self.timer.setInterval(30)
@@ -89,7 +89,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 			label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-		self.BUTTON = {key: getattr(self, f"pushButton_{key}") for key in str(string.ascii_lowercase)}
+		self.BUTTON = {key: getattr(self, f"pushButton_{key}") for key in ascii_lowercase}
 		for key, button in self.BUTTON.items():
 			button.setFont(QFont("nyt-franklin", 16, QFont.Weight.Bold))
 			button.setText(key.upper())
