@@ -271,8 +271,8 @@ class MyDisplayer:
 		pixmap = (self.timer.previous if self.timer.frame % 10 < 5 else self.timer.subsequent)[self.timer.frame // 10]
 		ratio = abs(1 - (self.timer.frame + 1) % 10 / 5)
 
-		util.cast(label).setStyleSheet(None)
-		util.cast(label).setPixmap(pixmap.scaled(pixmap.width(), int(pixmap.height() * ratio)))
+		label.setStyleSheet(None)
+		label.setPixmap(pixmap.scaled(pixmap.width(), int(pixmap.height() * ratio)))
 		self.timer.frame += 1
 
 
