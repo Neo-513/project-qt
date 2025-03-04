@@ -51,6 +51,9 @@ class MyCore(QMainWindow, Ui_MainWindow):
 				return
 
 		file = self.comboBox.currentText()
+		if not file:
+			return self.plainTextEdit_cmd.clear()
+
 		if self.radioButton_exe.isChecked():
 			file_path = util.join_path(paths["src"], f"{file}.py")
 			if not os.path.exists(file_path):
