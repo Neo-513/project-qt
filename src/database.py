@@ -1,63 +1,160 @@
 from database_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QComboBox, QHeaderView, QMainWindow, QLineEdit, QRadioButton, QTableWidgetItem
 import os
 import sys
 import webbrowser
 import util
 
-ICON = {"Q": "../database/lock", "I": "add", "U": "edit", "D": "delete"}
-
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	config = None
-
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../database/database"))
+		self.setWindowIcon(util.icon("../database/logo"))
 
-		util.button(self.pushButton_add, self.func_add, "add")
-		util.button(self.pushButton_delete, self.func_delete, "delete")
-		util.button(self.pushButton_save, self.func_save, "save")
+		util.button(self.pushButton_add, lambda: MyOperate.add(self), "add")
+		util.button(self.pushButton_delete, lambda: MyOperate.delete(self), "delete")
+		util.button(self.pushButton_save, lambda: MyOperate.save(self), "save")
 		util.select_folder(self.lineEdit_file, None, self.scan)
-		util.Menu.menu(self.tableWidget, func=self.menu)
+		util.Menu.menu(self.tableWidget, func=self.hyperlink)
 		self.lineEdit_search.textChanged.connect(self.search)
 		self.tableWidget.itemChanged.connect(self.editing)
-		self.tableWidget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-		self.tableWidget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 		self.lineEdit_file.setVisible(False)
 
 		if os.path.exists("database.json"):
-			self.config = util.FileIO.read("database.json")
-			for name in self.config:
+			file = util.FileIO.read("database.json")
+			for name, config in file.items():
 				radio = QRadioButton(name)
 				radio.setCursor(Qt.CursorShape.PointingHandCursor)
 				radio.setVisible(False)
+				radio.config = config
 				util.cast(radio).clicked.connect(self.switch)
 				self.horizontalLayout_config.addWidget(radio)
-				radio.click() if len(self.config) == 1 else None
+				radio.click() if len(file) == 1 else None
 
-	def func_add(self):
-		if self.tableWidget.columnCount():
-			self.tableWidget.setUpdatesEnabled(False)
-			self.tableWidget.insertRow(0)
-			self.assign(0, "I")
-			self.tableWidget.verticalScrollBar().setValue(0)
-			self.tableWidget.setUpdatesEnabled(True)
-			self.tableWidget.update()
+	def switch(self):
+		config = util.cast(self.sender()).config
+		self.lineEdit_file.setText(config["@path"])
+		self.tableWidget.sort = config.get("@sort", [])
 
-	def func_delete(self):
-		if self.tableWidget.columnCount():
-			self.tableWidget.setUpdatesEnabled(False)
-			for r in set(item.row() for item in self.tableWidget.selectedItems()):
-				if self.tableWidget.item(r, 0).data(Qt.ItemDataRole.UserRole) != "I":
-					self.change(r, "D")
-			self.tableWidget.setUpdatesEnabled(True)
-			self.tableWidget.update()
+		headers = tuple(header for header in config if not header.startswith("@"))
+		self.tableWidget.setColumnCount(len(headers))
+		self.tableWidget.setHorizontalHeaderLabels(headers)
 
-	def func_save(self):
+		self.tableWidget.config = []
+		for header in headers:
+			if not config[header]:
+				self.tableWidget.config.append(None)
+			elif config[header] == "*" or "%s" in config[header]:
+				self.tableWidget.config.append(config[header])
+			else:
+				self.tableWidget.config.append([""] + config[header].split(","))
+		self.scan()
+
+	def scan(self):
+		self.lineEdit_search.clear()
+
+		file_path = self.lineEdit_file.text()
+		if not os.path.exists(file_path):
+			return
+
+		datas = [[k] + v for k, v in util.FileIO.read(file_path).items()]
+		datas.sort(key=lambda x: [x[i] for i in self.tableWidget.sort])
+
+		MyDisplayer.display(self.tableWidget, self.editing, False)
+		self.tableWidget.setRowCount(0)
+		self.tableWidget.setRowCount(len(datas))
+		self.statusbar.showMessage(f"共{self.tableWidget.rowCount()}条")
+		for r, data in enumerate(datas):
+			MyDisplayer.row(r, data, self.tableWidget, self.editing)
+			self.tableWidget.item(r, 0).status = "Q"
+			self.tableWidget.item(r, 0).setIcon(util.icon("../database/lock"))
+			self.tableWidget.item(r, 0).setFlags(~Qt.ItemFlag.ItemIsEditable)
+		MyDisplayer.display(self.tableWidget, self.editing, True)
+
+	def search(self):
+		keyword = self.lineEdit_search.text().strip()
+		MyDisplayer.display(self.tableWidget, self.editing, False)
+		if not keyword:
+			for r in range(self.tableWidget.rowCount()):
+				self.tableWidget.setRowHidden(r, False)
+		else:
+			for r in reversed(range(self.tableWidget.rowCount())):
+				hidden = True
+				for c in range(self.tableWidget.columnCount()):
+					if self.tableWidget.item(r, c):
+						text = self.tableWidget.item(r, c).text()
+					elif isinstance(self.tableWidget.cellWidget(r, c), QLineEdit):
+						text = self.tableWidget.cellWidget(r, c).text()
+					elif isinstance(self.tableWidget.cellWidget(r, c), QComboBox):
+						text = self.tableWidget.cellWidget(r, c).currentText()
+					else:
+						text = ""
+					if keyword in text:
+						hidden = False
+						break
+				self.tableWidget.setRowHidden(r, hidden)
+		MyDisplayer.display(self.tableWidget, self.editing, True)
+
+	def hyperlink(self, widget, point):
+		item = widget.itemAt(point)
+		text = item.text().strip()
+		url = self.tableWidget.config[item.column()]
+		if text and url:
+			util.Menu.add(widget.property("menu"), "../database/link", "超链接", lambda: webbrowser.open(url % text))
+
+	def editing(self):
+		r = self.tableWidget.currentRow()
+		if not 0 <= r < self.tableWidget.rowCount():
+			return
+		if self.tableWidget.item(r, 0).status == "Q":
+			self.tableWidget.itemChanged.disconnect(self.editing)
+			self.tableWidget.item(r, 0).status = "U"
+			self.tableWidget.item(r, 0).setIcon(util.icon("edit"))
+			self.tableWidget.itemChanged.connect(self.editing)
+
+	def enterEvent(self, event):
+		if self.rect().bottom() - event.position().toPoint().y() >= 30:
+			return
+		for i in range(self.horizontalLayout_config.count()):
+			widget = self.horizontalLayout_config.itemAt(i).widget()
+			widget.setVisible(True) if widget else None
+
+	def leaveEvent(self, a0):
+		for i in range(self.horizontalLayout_config.count()):
+			widget = self.horizontalLayout_config.itemAt(i).widget()
+			widget.setVisible(False) if widget else None
+
+
+class MyOperate:
+	@staticmethod
+	def add(self):
+		if not self.tableWidget.columnCount():
+			return
+
+		MyDisplayer.display(self.tableWidget, self.editing, False)
+		self.tableWidget.insertRow(0)
+		MyDisplayer.row(0, "", self.tableWidget, self.editing)
+		self.tableWidget.item(0, 0).status = "I"
+		self.tableWidget.item(0, 0).setIcon(util.icon("add"))
+		self.tableWidget.verticalScrollBar().setValue(0)
+		MyDisplayer.display(self.tableWidget, self.editing, True)
+
+	@staticmethod
+	def delete(self):
+		if not self.tableWidget.columnCount():
+			return
+
+		MyDisplayer.display(self.tableWidget, self.editing, False)
+		for r in set(item.row() for item in self.tableWidget.selectedItems()):
+			if self.tableWidget.item(r, 0).status != "I":
+				self.tableWidget.item(r, 0).status = "D"
+				self.tableWidget.item(r, 0).setIcon(util.icon("delete"))
+		MyDisplayer.display(self.tableWidget, self.editing, True)
+
+	@staticmethod
+	def save(self):
 		if not self.tableWidget.columnCount():
 			return
 
@@ -67,7 +164,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		dic, flag = util.FileIO.read(file_path), False
 		for r in range(self.tableWidget.rowCount()):
-			status = self.tableWidget.item(r, 0).data(Qt.ItemDataRole.UserRole)
+			status = self.tableWidget.item(r, 0).status
 			pk = self.tableWidget.item(r, 0).text()
 
 			data = []
@@ -101,131 +198,61 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			util.dialog("保存成功!", "success")
 		self.scan()
 
-	def assign(self, r, status, data=None):
-		for c in range(self.tableWidget.columnCount()):
-			item = self.tableWidget.horizontalHeaderItem(c)
-			text = data[c] if data and c < len(data) else ""
 
-			if item.data(Qt.ItemDataRole.UserRole) == "*":
-				widget = QLineEdit(text)
-				widget.setStyleSheet("border: none")
-				util.pwd(widget) if data else None
-				util.cast(widget).textChanged.connect(self.editing)
-				self.tableWidget.setCellWidget(r, c, widget)
-			elif isinstance(item.data(Qt.ItemDataRole.UserRole), list):
+class MyDisplayer:
+	@staticmethod
+	def display(table_widget, func, lock):
+		table_widget.setUpdatesEnabled(lock)
+		table_widget.setSortingEnabled(lock)
+		if lock:
+			table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+			table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+			table_widget.itemChanged.connect(func)
+			table_widget.update()
+		else:
+			table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+			table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+			table_widget.itemChanged.disconnect(func)
+
+	@staticmethod
+	def row(r, data, table_widget, func):
+		for c in range(table_widget.columnCount()):
+			text = data[c] if data and c < len(data) else ""
+			if isinstance(table_widget.config[c], list):
 				widget = QComboBox()
-				widget.addItems(item.data(Qt.ItemDataRole.UserRole))
+				widget.addItems(table_widget.config[c])
 				widget.setCurrentText(text)
 				widget.setMaxVisibleItems(widget.count())
-				util.cast(widget).currentTextChanged.connect(self.editing)
-				self.tableWidget.setCellWidget(r, c, widget)
+				util.cast(widget).currentTextChanged.connect(func)
+				table_widget.setCellWidget(r, c, widget)
+			elif table_widget.config[c] == "*":
+				widget = QLineEdit(text)
+				widget.setStyleSheet("border: none")
+				MyPwd.pwd(widget) if data else None
+				util.cast(widget).textChanged.connect(func)
+				table_widget.setCellWidget(r, c, widget)
 			else:
-				self.tableWidget.setItem(r, c, QTableWidgetItem(text))
+				table_widget.setItem(r, c, QTableWidgetItem(text))
 
-		self.change(r, status)
-		self.tableWidget.item(r, 0).setFlags(~Qt.ItemFlag.ItemIsEditable) if data else None
 
-	def switch(self):
-		config = self.config[util.cast(self.sender()).text()]
-		self.lineEdit_file.setText(config["@path"])
+class MyPwd:
+	@staticmethod
+	def pwd(line_edit):
+		position = QLineEdit.ActionPosition.LeadingPosition
+		util.add_action(line_edit, "../database/hide", "密码", lambda: MyPwd._switch(line_edit), position=position)
+		line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+		line_edit.setReadOnly(True)
 
-		headers = [header for header in config if not header.startswith("@")]
-		self.tableWidget.setColumnCount(len(headers))
-		self.tableWidget.setHorizontalHeaderLabels(headers)
-		self.tableWidget.setProperty("sort", config.get("@sort", [0]))
-
-		for i, header in enumerate(headers):
-			item = self.tableWidget.horizontalHeaderItem(i)
-			if not config[header]:
-				item.setData(Qt.ItemDataRole.UserRole, None)
-				item.setIcon(QIcon())
-			elif config[header] == "*":
-				item.setData(Qt.ItemDataRole.UserRole, "*")
-				item.setIcon(util.icon("../database/secure"))
-			elif "%s" in config[header]:
-				item.setData(Qt.ItemDataRole.UserRole, config[header])
-				item.setIcon(util.icon("internet"))
-			else:
-				item.setData(Qt.ItemDataRole.UserRole, [""] + config[header].split(","))
-				item.setIcon(util.icon("list"))
-		self.scan()
-
-	def scan(self):
-		self.lineEdit_search.clear()
-
-		file_path = self.lineEdit_file.text()
-		if not os.path.exists(file_path):
-			return
-
-		datas = [[k] + v for k, v in util.FileIO.read(file_path).items()]
-		datas.sort(key=lambda x: [x[i] for i in self.tableWidget.property("sort")])
-
-		self.tableWidget.setRowCount(0)
-		self.tableWidget.setRowCount(len(datas))
-		self.statusbar.showMessage(f"共{self.tableWidget.rowCount()}条")
-
-		self.tableWidget.setUpdatesEnabled(False)
-		for r, data in enumerate(datas):
-			self.assign(r, "Q", data)
-		self.tableWidget.setUpdatesEnabled(True)
-		self.tableWidget.update()
-
-	def editing(self):
-		r = self.tableWidget.currentRow()
-		if not (0 <= r < self.tableWidget.rowCount()):
-			return
-		if self.tableWidget.item(r, 0).data(Qt.ItemDataRole.UserRole) in ("Q", "U"):
-			self.change(r, "U")
-
-	def change(self, r, status):
-		self.tableWidget.itemChanged.disconnect(self.editing)
-		self.tableWidget.item(r, 0).setData(Qt.ItemDataRole.UserRole, status)
-		self.tableWidget.item(r, 0).setIcon(util.icon(ICON[status]))
-		self.tableWidget.itemChanged.connect(self.editing)
-
-	def search(self):
-		keyword = self.lineEdit_search.text().strip()
-		self.tableWidget.setUpdatesEnabled(False)
-		if not keyword:
-			for r in range(self.tableWidget.rowCount()):
-				self.tableWidget.setRowHidden(r, False)
+	@staticmethod
+	def _switch(line_edit):
+		if line_edit.echoMode() == QLineEdit.EchoMode.Normal:
+			line_edit.setEchoMode(QLineEdit.EchoMode.Password)
+			line_edit.setReadOnly(True)
+			line_edit.actions()[0].setIcon(util.icon("../database/hide"))
 		else:
-			for r in reversed(range(self.tableWidget.rowCount())):
-				hidden = True
-				for c in range(self.tableWidget.columnCount()):
-					if self.tableWidget.item(r, c):
-						text = self.tableWidget.item(r, c).text()
-					elif isinstance(self.tableWidget.cellWidget(r, c), QLineEdit):
-						text = self.tableWidget.cellWidget(r, c).text()
-					elif isinstance(self.tableWidget.cellWidget(r, c), QComboBox):
-						text = self.tableWidget.cellWidget(r, c).currentText()
-					else:
-						text = ""
-					if keyword in text:
-						hidden = False
-						break
-				self.tableWidget.setRowHidden(r, hidden)
-		self.tableWidget.setUpdatesEnabled(True)
-		self.tableWidget.update()
-
-	def enterEvent(self, event):
-		if self.rect().bottom() - event.position().toPoint().y() >= 30:
-			return
-		for i in range(self.horizontalLayout_config.count()):
-			widget = self.horizontalLayout_config.itemAt(i).widget()
-			widget.setVisible(True) if widget else None
-
-	def leaveEvent(self, a0):
-		for i in range(self.horizontalLayout_config.count()):
-			widget = self.horizontalLayout_config.itemAt(i).widget()
-			widget.setVisible(False) if widget else None
-
-	def menu(self, widget, point):
-		item = widget.itemAt(point)
-		text = item.text().strip()
-		url = self.tableWidget.horizontalHeaderItem(item.column()).data(Qt.ItemDataRole.UserRole)
-		if text and url:
-			util.Menu.add(widget.property("menu"), "../database/arrow", "超链接", lambda: webbrowser.open(url % text))
+			line_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+			line_edit.setReadOnly(False)
+			line_edit.actions()[0].setIcon(util.icon("../database/show"))
 
 
 if __name__ == "__main__":
