@@ -69,10 +69,8 @@ PIXMAP_SIZE = 52
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	guess, state = None, None
-	answer, inning = None, None
-	alphabet = set()
-	show_hint, hint, candidate = False, None, None
+	guess = state = answer = inning = hint = candidate = None
+	alphabet, show_hint = set(), False
 
 	def __init__(self):
 		super().__init__()
