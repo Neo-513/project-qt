@@ -1,6 +1,6 @@
 from database_ui import Ui_MainWindow
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QComboBox, QHeaderView, QMainWindow, QLineEdit, QRadioButton, QTableWidgetItem
+from PyQt6.QtWidgets import QApplication, QComboBox, QHeaderView, QLineEdit, QMainWindow, QRadioButton, QTableWidgetItem
 import os
 import sys
 import webbrowser
@@ -169,11 +169,10 @@ class MyOperate:
 
 			data = []
 			for c in range(1, self.tableWidget.columnCount()):
-				item = self.tableWidget.horizontalHeaderItem(c)
-				if item.data(Qt.ItemDataRole.UserRole) == "*":
-					data.append(self.tableWidget.cellWidget(r, c).text())
-				elif isinstance(item.data(Qt.ItemDataRole.UserRole), list):
+				if isinstance(self.tableWidget.config[c], list):
 					data.append(self.tableWidget.cellWidget(r, c).currentText())
+				elif self.tableWidget.config[c] == "*":
+					data.append(self.tableWidget.cellWidget(r, c).text())
 				else:
 					data.append(self.tableWidget.item(r, c).text())
 			data += dic.get(pk, [])[self.tableWidget.columnCount() - 1:]
@@ -201,10 +200,9 @@ class MyOperate:
 
 class MyDisplayer:
 	@staticmethod
-	def display(table_widget, func, lock):
-		table_widget.setUpdatesEnabled(lock)
-		table_widget.setSortingEnabled(lock)
-		if lock:
+	def display(table_widget, func, enable):
+		table_widget.setUpdatesEnabled(enable)
+		if enable:
 			table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 			table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 			table_widget.itemChanged.connect(func)
