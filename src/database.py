@@ -36,7 +36,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def switch(self):
 		config = util.cast(self.sender()).config
 		self.lineEdit_file.setText(config["@path"])
-		self.tableWidget.sort = config.get("@sort", [])
+		self.tableWidget.sort = config.get("@sort", [0])
 
 		headers = tuple(header for header in config if not header.startswith("@"))
 		self.tableWidget.setColumnCount(len(headers))
