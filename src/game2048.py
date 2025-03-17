@@ -1,144 +1,169 @@
 from game2048_ui import Ui_MainWindow
-from PyQt6.QtCore import pyqtSignal, QRect, QThread, QTimer, Qt
+from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import lru_cache
 from itertools import product
-from multiprocessing import cpu_count, Pool
 import numpy as np
 import os
 import random
 import sys
-import time
 import util
 
-KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
-MOVEMENT = tuple(KEY.values())
-
-PATH_MERGE_SEQUENTIAL = util.join_path(util.RESOURCE, "game2048", "cache_merge_sequential.pkl")
-PATH_MERGE_REVERSED = util.join_path(util.RESOURCE, "game2048", "cache_merge_reversed.pkl")
-PATH_MERGE_POTENTIAL = util.join_path(util.RESOURCE, "game2048", "cache_merge_potential.pkl")
-PATH_EVALUATION = util.join_path(util.RESOURCE, "game2048", "evaluation.pkl")
-
-CACHE_MERGE_SEQUENTIAL = util.FileIO.read(PATH_MERGE_SEQUENTIAL)
-CACHE_MERGE_REVERSED = util.FileIO.read(PATH_MERGE_REVERSED)
-CACHE_MERGE_POTENTIAL = util.FileIO.read(PATH_MERGE_POTENTIAL)
+PATH = {
+	"sequential": util.join_path(util.RESOURCE, "game2048", "cache_sequential.pkl"),
+	"reversed": util.join_path(util.RESOURCE, "game2048", "cache_reversed.pkl"),
+	"mono": util.join_path(util.RESOURCE, "game2048", "cache_mono.pkl"),
+	"smooth": util.join_path(util.RESOURCE, "game2048", "cache_smooth.pkl"),
+	"merge": util.join_path(util.RESOURCE, "game2048", "cache_merge.pkl")
+}
+CACHE = {
+	"sequential": util.read(PATH["sequential"]) if os.path.exists(PATH["sequential"]) else None,
+	"reversed": util.read(PATH["reversed"]) if os.path.exists(PATH["reversed"]) else None,
+	"mono": util.read(PATH["mono"]) if os.path.exists(PATH["mono"]) else None,
+	"smooth": util.read(PATH["smooth"]) if os.path.exists(PATH["smooth"]) else None,
+	"merge": util.read(PATH["merge"]) if os.path.exists(PATH["merge"]) else None
+}
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	WEIGHT = (19, 17, 15, 11, 30)
-	board = np.zeros((4, 4), dtype=np.int8)
-	skeleton, my_thread, mouse_pos = None, None, None
+	WEIGHT = (0.605904, 0.900348, 0.196291, 0.508765, 0.909638)
+	KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
 
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../game2048/2048"))
+		self.setWindowIcon(util.icon("../game2048/logo"))
 
-		self.timer = QTimer()
-		self.timer.setInterval(15)
-		util.cast(self.timer).timeout.connect(lambda: MyDisplayer.animate(self))
-
-		util.button(self.pushButton, self.restart)
-		util.button(self.toolButton_hinting, self.hinting, "../game2048/bulb", tip="提示", ico_size=24)
-		util.button(self.toolButton_botting, self.botting, "../game2048/brain", tip="AI托管", ico_size=24)
+		util.button(self.pushButton, self.restart, tip="新游戏")
+		util.button(self.toolButton_hinting, self.hinting, "../game2048/hint", tip="提示", ico_size=32)
+		util.button(self.toolButton_botting, self.botting, "../game2048/nonbotting", tip="托管", ico_size=32)
 		self.label.mousePressEvent = self.mouse_press
 		self.label.mouseReleaseEvent = self.mouse_release
 
-		MyDisplayer.skeletonize(self)
+		self.board = np.zeros((4, 4), dtype=np.int8)
+		self.skeleton = MyDisplayer.skeletonize()
+		self.mouse_pos = None
+		self.timer1 = util.timer(15, self.timeout1)
+		self.timer2 = util.timer(160, self.timeout2)
 		self.restart()
 
 	def restart(self):
-		if self.timer.isActive():
-			self.timer.stop()
-		if self.my_thread:
-			MyThread.thread_terminate(self)
-		MyMatrixer.reset(self.board)
+		if self.timer1.isActive():
+			self.timer1.stop()
+		if self.timer2.isActive():
+			self.timer2.stop()
+		self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
+		self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+		self.board.fill(0)
+		MyMatrixer.add(self.board)
+		MyMatrixer.add(self.board)
 		MyDisplayer.display(self)
 
-	def keyPressEvent(self, a0):
-		if self.timer.isActive():
+	def keyPressEvent(self, event):
+		if self.timer1.isActive() or self.timer2.isActive():
 			return
-		if self.my_thread:
-			return
-		if a0.key() in KEY:
-			movement = KEY[util.cast(a0.key())]
-			self.act(movement)
+		if event.key() in MyCore.KEY:
+			self.act(MyCore.KEY[event.key()])
 
 	def mouse_press(self, event):
 		self.mouse_pos = event.pos()
 
 	def mouse_release(self, event):
-		if self.timer.isActive():
-			return
-		if self.my_thread:
+		if self.timer1.isActive() or self.timer2.isActive():
 			return
 		if not self.mouse_pos:
 			return
 
-		delta_x = event.pos().x() - self.mouse_pos.x()
-		delta_y = event.pos().y() - self.mouse_pos.y()
+		dx = event.pos().x() - self.mouse_pos.x()
+		dy = event.pos().y() - self.mouse_pos.y()
 		self.mouse_pos = None
 
-		if abs(delta_x) >= abs(delta_y):
-			movement = "R" if delta_x >= 0 else "L"
+		if abs(dx) >= abs(dy):
+			movement = "R" if dx >= 0 else "L"
 		else:
-			movement = "D" if delta_y >= 0 else "U"
+			movement = "D" if dy >= 0 else "U"
 		self.act(movement)
 
 	def hinting(self):
-		if self.timer.isActive():
+		if self.timer1.isActive() or self.timer2.isActive():
 			return
-		if self.my_thread:
-			return
-		movement = ExpectimaxAlgorithm.infer(self.board, MyCore.WEIGHT)
-		self.act(movement)
+		self.act(ExpectimaxAlgorithm.solve(self.board, MyCore.WEIGHT))
 
 	def botting(self):
-		if self.my_thread:
-			MyThread.thread_terminate(self)
+		if self.timer2.isActive():
+			self.timer2.stop()
+			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
+			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+			MyDisplayer.display(self)
 		else:
-			MyThread.thread_run(self)
+			self.toolButton_botting.setIcon(util.icon("../game2048/botting"))
+			self.toolButton_hinting.setIcon(util.icon("../game2048/nonhint"))
+			self.timer2.start()
+
+	def timeout1(self):
+		self.timer1.frame += 1
+		if self.timer1.frame > 10:
+			self.timer1.stop()
+			MyDisplayer.display(self)
+			return
+
+		offset = self.timer1.frame / 10
+		pixmap = self.skeleton.copy()
+		with QPainter(pixmap) as painter:
+			painter.setFont(MyDisplayer.FONT)
+			for (sx, sy), (ex, ey), tile in self.timer1.trails:
+				groove = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
+				MyDisplayer.draw(painter, tile, groove)
+		self.label.setPixmap(pixmap)
+
+	def timeout2(self):
+		if MyMatrixer.win(self.board) or MyMatrixer.lose(self.board):
+			return
+		self.act(ExpectimaxAlgorithm.solve(self.board, MyCore.WEIGHT))
 
 	def act(self, movement):
 		previous = self.board.copy()
-		self.board = MyMatrixer.moving(self.board, movement)
+		self.board = MyMatrixer.move(self.board, movement)
 
-		self.timer.setProperty("frame", 0)
-		self.timer.setProperty("trails", MyDisplayer.track(previous.copy(), self.board.copy(), movement))
-		self.timer.start()
+		self.timer1.frame = 0
+		self.timer1.trails = MyDisplayer.track(previous.copy(), self.board.copy(), movement)
+		self.timer1.start()
 
 		if MyMatrixer.win(self.board):
+			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
+			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
 			util.dialog("You win", "success")
 			return self.restart()
 		if not np.array_equal(self.board, previous):
 			MyMatrixer.add(self.board)
 		if MyMatrixer.lose(self.board):
+			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
+			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
 			util.dialog("You lose", "error")
 			return self.restart()
 
 
 class MyDisplayer:
-	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
-	COLOR = {
-		0: QColor(205, 193, 180), 1: QColor(238, 228, 218), 2: QColor(237, 224, 200), 3: QColor(242, 177, 121),
-		4: QColor(245, 149, 99), 5: QColor(246, 124, 95), 6: QColor(246, 94, 59), 7: QColor(237, 207, 114),
-		8: QColor(237, 204, 97), 9: QColor(228, 192, 42), 10: QColor(226, 186, 19), 11: QColor(236, 196, 0),
-	}
-
 	GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
+	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
+	COLOR = [
+		(205, 193, 180), (238, 228, 218), (237, 224, 200), (242, 177, 121), (245, 149, 99), (246, 124, 95),
+		(246, 94, 59), (237, 207, 114), (237, 204, 97), (228, 192, 42), (226, 186, 19), (236, 196, 0)
+	]
 	TRANS = {
-		"L": lambda x, y: MyDisplayer.GROOVE[(x, y)], "R": lambda x, y: MyDisplayer.GROOVE[(3 - x, 3 - y)],
-		"U": lambda x, y: MyDisplayer.GROOVE[(y, 3 - x)], "D": lambda x, y: MyDisplayer.GROOVE[(3 - y, x)]
+		"L": lambda x, y: MyDisplayer.GROOVE[x, y], "R": lambda x, y: MyDisplayer.GROOVE[3 - x, 3 - y],
+		"U": lambda x, y: MyDisplayer.GROOVE[y, 3 - x], "D": lambda x, y: MyDisplayer.GROOVE[3 - y, x]
 	}
 
 	@staticmethod
-	def skeletonize(self):
-		self.skeleton = QPixmap(475, 475)
-		self.skeleton.fill(QColor(187, 173, 160))
-		with QPainter(self.skeleton) as painter:
+	def skeletonize():
+		pixmap = QPixmap(475, 475)
+		pixmap.fill(QColor(187, 173, 160))
+		with QPainter(pixmap) as painter:
 			for groove in MyDisplayer.GROOVE.values():
 				MyDisplayer.draw(painter, 0, groove)
+		return pixmap
 
 	@staticmethod
 	def display(self):
@@ -150,26 +175,10 @@ class MyDisplayer:
 		self.label.setPixmap(pixmap)
 
 	@staticmethod
-	def animate(self):
-		self.timer.setProperty("frame", self.timer.property("frame") + 1)
-		if self.timer.property("frame") > 10:
-			self.timer.stop()
-			return MyDisplayer.display(self)
-
-		offset = self.timer.property("frame") / 10
-		pixmap = self.skeleton.copy()
-		with QPainter(pixmap) as painter:
-			painter.setFont(MyDisplayer.FONT)
-			for (sx, sy), (ex, ey), tile in self.timer.property("trails"):
-				groove = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
-				MyDisplayer.draw(painter, tile, groove)
-		self.label.setPixmap(pixmap)
-
-	@staticmethod
 	def draw(painter, tile, groove):
 		rect = QRect(*groove, 100, 100)
 		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(MyDisplayer.COLOR[tile])
+		painter.setBrush(QColor(*MyDisplayer.COLOR[tile]))
 		painter.drawRect(rect)
 		painter.setPen(QColor(118, 110, 101))
 		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(2 ** tile).rstrip("1"))
@@ -180,10 +189,10 @@ class MyDisplayer:
 		if movement == "R":
 			previous = previous[::-1, ::-1]
 			subsequent = subsequent[::-1, ::-1]
-		elif movement == "U":
+		if movement == "U":
 			previous = previous.T[::-1]
 			subsequent = subsequent.T[::-1]
-		elif movement == "D":
+		if movement == "D":
 			previous = previous[::-1].T
 			subsequent = subsequent[::-1].T
 
@@ -201,61 +210,17 @@ class MyDisplayer:
 		return trails[::-1]
 
 
-class MyThread(QThread):
-	signal_update = pyqtSignal()
-	dummy = None
-	running = True
-
-	def __init__(self):
-		super().__init__()
-		util.cast(self.signal_update).connect(self.update)
-
-	def run(self):
-		while self.running and not MyMatrixer.win(self.dummy.board) and not MyMatrixer.lose(self.dummy.board):
-			util.cast(self.signal_update).emit()
-			self.msleep(200)
-
-	def update(self):
-		movement = ExpectimaxAlgorithm.infer(self.dummy.board, MyCore.WEIGHT)
-		self.dummy.act(movement)
-
-	@staticmethod
-	def thread_run(dummy):
-		dummy.toolButton_botting.setIcon(util.icon("../game2048/terminate"))
-		dummy.toolButton_botting.setToolTip("取消AI托管")
-
-		dummy.my_thread = MyThread()
-		dummy.my_thread.dummy = dummy
-		dummy.my_thread.start()
-
-	@staticmethod
-	def thread_terminate(dummy):
-		dummy.toolButton_botting.setIcon(util.icon("../game2048/brain"))
-		dummy.toolButton_botting.setToolTip("AI托管")
-
-		dummy.my_thread.running = False
-		dummy.my_thread.wait()
-		dummy.my_thread = None
-
-
 class MyMatrixer:
 	@staticmethod
-	def moving(board, movement):
+	def move(board, movement):
 		board = board.T if movement in "UD" else board
 		for i in range(4):
-			board[i] = (CACHE_MERGE_SEQUENTIAL if movement in "LU" else CACHE_MERGE_REVERSED)[board[i].tobytes()]
+			board[i] = CACHE["sequential" if movement in "LU" else "reversed"][board[i].tobytes()]
 		return board.T if movement in "UD" else board
 
 	@staticmethod
-	def reset(board):
-		board.fill(0)
-		MyMatrixer.add(board)
-		MyMatrixer.add(board)
-
-	@staticmethod
 	def add(board):
-		empty_pos = random.choice(np.argwhere(board == 0))
-		board[tuple(empty_pos)] = 1 if random.randint(1, 10) <= 9 else 2
+		board[tuple(random.choice(np.argwhere(board == 0)))] = 1 if random.random() <= 0.9 else 2
 
 	@staticmethod
 	def win(board):
@@ -266,212 +231,72 @@ class MyMatrixer:
 		return (0 not in board) and (0 not in np.diff(board)) and (0 not in np.diff(board.T))
 
 
-class MyPrecomputation:
-	@staticmethod
-	def compute_merges():
-		cache_merge_sequential, cache_merge_reversed = {}, {}
-		for tiles in product(range(12), repeat=4):
-			t, merged = [], False
-			for tile in tiles:
-				if tile == 0:
-					continue
-				if t and t[-1] == tile and not merged:
-					t[-1] += 1
-					merged = True
-				else:
-					t.append(tile)
-					merged = False
-			cache = np.array(t + [0] * (4 - len(t)))
-			cache_merge_sequential[np.array(tiles, dtype=np.int8).tobytes()] = cache
-			cache_merge_reversed[np.array(tiles[::-1], dtype=np.int8).tobytes()] = cache[::-1]
-		util.FileIO.write(PATH_MERGE_SEQUENTIAL, cache_merge_sequential)
-		util.FileIO.write(PATH_MERGE_REVERSED, cache_merge_reversed)
-
-	@staticmethod
-	def compute_merge_potential():
-		cache_merge_potential = {}
-		for tiles in product(range(12), repeat=4):
-			t = np.array(tiles)
-			cache_merge_potential[np.array(tiles, dtype=np.int8).tobytes()] = np.count_nonzero(np.diff(t[t != 0]) == 0)
-		util.FileIO.write(PATH_MERGE_POTENTIAL, cache_merge_potential)
-
-
 class ExpectimaxAlgorithm:
 	@staticmethod
-	def infer(board, weights):
+	def solve(board, weight):
 		max_depth = 3 if np.max(board) >= 8 else 2
-		_, movement = ExpectimaxAlgorithm.search(board, weights, 0, max_depth)
+		movement, _ = ExpectimaxAlgorithm.search(board, weight, 0, max_depth)
 		return movement
 
 	@staticmethod
-	def search(board, weights, depth, max_depth):
+	def search(board, weight, depth, max_depth):
 		if max_depth == 3:
-			return ExpectimaxAlgorithm._search_cache(board.tobytes(), weights, depth, max_depth)
+			return ExpectimaxAlgorithm.__search_cache(board.tobytes(), weight, depth, max_depth)
 		else:
-			return ExpectimaxAlgorithm._search_nocache(board, weights, depth, max_depth)
+			return ExpectimaxAlgorithm.__search_nocache(board, weight, depth, max_depth)
 
 	@staticmethod
 	@lru_cache(maxsize=100000)
-	def _search_cache(board, weights, depth, max_depth):
+	def __search_cache(board, weight, depth, max_depth):
 		board = np.frombuffer(board, dtype=np.int8).reshape((4, 4))
-		return ExpectimaxAlgorithm._search_nocache(board, weights, depth, max_depth)
+		return ExpectimaxAlgorithm.__search_nocache(board, weight, depth, max_depth)
 
 	@staticmethod
-	def _search_nocache(board, weights, depth, max_depth):
+	def __search_nocache(board, weight, depth, max_depth):
+		if MyMatrixer.win(board):
+			return None, 10000
 		if MyMatrixer.lose(board):
-			return -1000, None
+			return None, -10000
 		if depth >= max_depth:
-			return ExpectimaxAlgorithm.evaluate(board, weights), None
+			return None, ExpectimaxAlgorithm.evaluate(board, weight)
+
 		if depth % 2 == 0:
-			best_score, best_movement = -np.inf, None
-			for movement in MOVEMENT:
-				subsequent = board.copy()
-				subsequent = MyMatrixer.moving(subsequent, movement)
+			best_movement, best_score = None, -np.inf
+			for movement in "LRUD":
+				subsequent = MyMatrixer.move(board.copy(), movement)
 				if not np.array_equal(board, subsequent):
-					score, _ = ExpectimaxAlgorithm.search(subsequent, weights, depth + 1, max_depth)
-					if score >= best_score:
-						best_score, best_movement = score, movement
-			return best_score, best_movement
+					_, score = ExpectimaxAlgorithm.search(subsequent, weight, depth + 1, max_depth)
+					if score > best_score:
+						best_movement, best_score = movement, score
+			return best_movement, best_score
 		else:
-			empty_cells = tuple(np.argwhere(board == 0))
-			if not empty_cells:
-				return ExpectimaxAlgorithm.evaluate(board, weights)
-			probs = {2: 0.9 / len(empty_cells), 4: 0.1 / len(empty_cells)}
-			best_score = 0
-			for empty_cell in empty_cells:
-				for tile, prob in probs.items():
-					subsequent = board.copy()
-					subsequent[tuple(empty_cell)] = tile
-					score, _ = ExpectimaxAlgorithm.search(subsequent, weights, depth + 1, max_depth)
-					best_score += prob * score
-			return best_score, None
+			if 0 not in board:
+				return None, ExpectimaxAlgorithm.evaluate(board, weight)
+			empty_cells = np.argwhere(board == 0)
+			probs, best_score = {2: 0.9 / len(empty_cells), 4: 0.1 / len(empty_cells)}, 0
+			for empty_cell, (tile, prob) in product(empty_cells, probs.items()):
+				subsequent = board.copy()
+				subsequent[tuple(empty_cell)] = tile
+				_, score = ExpectimaxAlgorithm.search(subsequent, weight, depth + 1, max_depth)
+				best_score += prob * score
+			return None, best_score
 
 	@staticmethod
-	def evaluate(board, weights):
-		potential_merge = 0
-		for movement in MOVEMENT:
-			subsequent = board.copy()
-			subsequent = MyMatrixer.moving(subsequent, movement)
-			potential_merge += sum(CACHE_MERGE_POTENTIAL[s.tobytes()] for s in np.vstack((subsequent, subsequent.T)))
-
-		diff_h = np.abs(board[:, :-1] - board[:, 1:])
-		mask_h = (board[:, :-1] != 0) & (board[:, 1:] != 0)
-		diff_v = np.abs(board[:-1, :] - board[1:, :])
-		mask_v = (board[:-1, :] != 0) & (board[1:, :] != 0)
-		smoothness = - np.sum(diff_h * mask_h) - np.sum(diff_v * mask_v)
-
+	def evaluate(board, weight):
+		mono = smooth = merge = 0
+		for b in board:
+			byt = b.tobytes()
+			mono += CACHE["mono"][byt]
+			smooth -= CACHE["smooth"][byt]
+			merge += CACHE["merge"][byt]
+		for b in board.T:
+			byt = b.tobytes()
+			mono += CACHE["mono"][byt]
+			smooth -= CACHE["smooth"][byt]
+			merge += CACHE["merge"][byt]
 		return (
-			weights[0] * np.sum(board == 0) +
-			weights[1] * ((np.argmax(board) in (0, 3, 12, 15)) * np.max(board)) +
-			weights[2] * (np.sum(board) - np.sum(board[1:-1,1:-1])) +
-			weights[3] * potential_merge +
-			weights[4] * smoothness
-		)
-
-
-class GeneticAlgorithm:
-	GENE, DNA = 30, 5
-	EPOCH, POPULATION = 10, 80
-	CROSSOVER, MUTATION = 0.6, 0.1
-	ELITE, INFERIOR = 16, 8
-	STEP = 1500
-
-	@staticmethod
-	def train():
-		board = MyCore.board.copy()
-		with Pool(processes=cpu_count()) as pool:
-			if not os.path.exists(PATH_EVALUATION):
-				population = [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.POPULATION)]
-			else:
-				population = list(util.FileIO.read(PATH_EVALUATION))
-
-			for epoch in range(GeneticAlgorithm.EPOCH):
-				tictoc = time.time()
-				evaluation = dict(pool.imap_unordered(GeneticAlgorithm.fit, ((board, dna, epoch, i) for i, dna in enumerate(population))))
-				util.FileIO.write(PATH_EVALUATION, evaluation)
-				print(f"TICTOC: {round(time.time() - tictoc, 2)} s")
-				print(sorted(evaluation.items(), key=lambda x: x[1], reverse=True))
-
-				population_elite, population_common = GeneticAlgorithm.select(evaluation)
-				population_crossovered = GeneticAlgorithm.crossover(population_common)
-				population_mutated = GeneticAlgorithm.mutate(population_crossovered)
-				population_newborn = [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.INFERIOR)]
-				population = population_elite + population_mutated + population_newborn
-
-	@staticmethod
-	def get_population():
-		return [GeneticAlgorithm.get_dna() for _ in range(GeneticAlgorithm.POPULATION)]
-
-	@staticmethod
-	def get_dna():
-		return tuple(GeneticAlgorithm.get_gene() for _ in range(GeneticAlgorithm.DNA))
-
-	@staticmethod
-	def get_gene():
-		return random.randint(1, GeneticAlgorithm.GENE)
-
-	@staticmethod
-	def fit(params):
-		board, weights, epoch, i = params
-		fitness = GeneticAlgorithm._fit(board, weights, epoch, i, 1, 0)
-		extra = 4 if fitness >= 10000 else 2
-		for j in range(extra):
-			fitness += GeneticAlgorithm._fit(board, weights, epoch, i, j + 2, extra + 1)
-		return weights, fitness // extra
-
-	@staticmethod
-	def _fit(board, weights, epoch, i, j, extra):
-		MyMatrixer.reset(board)
-		step = 0
-
-		while True:
-			step += 1
-			if MyMatrixer.win(board):
-				fitness = (GeneticAlgorithm.STEP - step) + 10000
-				GeneticAlgorithm.log(epoch, i, j, extra, step, fitness, weights)
-				return fitness
-			if MyMatrixer.lose(board) or step >= GeneticAlgorithm.STEP:
-				fitness = (GeneticAlgorithm.STEP - step) + np.max(board) * 500
-				GeneticAlgorithm.log(epoch, i, j, extra, step, fitness, weights)
-				return fitness
-
-			movement = ExpectimaxAlgorithm.infer(board, weights)
-			previous = board.copy()
-			board = MyMatrixer.moving(board, movement)
-			if not np.array_equal(board, previous):
-				MyMatrixer.add(board)
-
-	@staticmethod
-	def select(evaluation):
-		evaluation = sorted(evaluation.items(), key=lambda x: x[1], reverse=True)[:-GeneticAlgorithm.INFERIOR]
-		elites = [ev[0] for ev in evaluation[:GeneticAlgorithm.ELITE]]
-		commons = [ev[0] for ev in evaluation[GeneticAlgorithm.ELITE:]]
-		return elites, commons
-
-	@staticmethod
-	def crossover(population):
-		for i in range(0, len(population) // 2 * 2, 2):
-			if random.random() < GeneticAlgorithm.CROSSOVER:
-				dna1 = list(population[i])
-				dna2 = list(population[i + 1])
-				for j in range(GeneticAlgorithm.DNA):
-					if random.random() < 0.5:
-						dna1[j], dna2[j] = dna2[j], dna1[j]
-				population[i] = tuple(dna1)
-				population[i + 1] = tuple(dna2)
-		return population
-
-	@staticmethod
-	def mutate(population):
-		return [tuple(GeneticAlgorithm.get_gene() if random.random() < GeneticAlgorithm.MUTATION else gene for gene in dna) for dna in population]
-
-	@staticmethod
-	def log(epoch, i, j, extra, step, fitness, dna):
-		print(
-			f"EPOCH[{epoch + 1:2}/{GeneticAlgorithm.EPOCH}] "
-			f"DNA[{i + 1:2}/{GeneticAlgorithm.POPULATION}] "
-			f"GAME[{j}/{extra}] "
-			f"STEP[{step:4}] FITNESS[{fitness:5}] {dna}"
+			weight[0] * (np.max(board) in (board[0, 0], board[0, 3], board[3, 0], board[3, 3])) * 15 +
+			weight[1] * np.sum(board == 0) + weight[2] * mono + weight[3] * smooth + weight[4] * merge
 		)
 
 
