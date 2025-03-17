@@ -24,17 +24,26 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
+		self.label.mousePressEvent = self.mouse_press
+		self.label.wheelEvent = self.wheel_scroll
+
 		self.board = np.zeros((9, 9), dtype=int)
 		self.result = np.zeros((9, 9), dtype=int)
 		self.selection = (0, 0)
 		self.skeleton = MyDisplayer.skeletonize()
 		MyDisplayer.display(self)
 
-	def mousePressEvent(self, event):
-		x, y = (event.pos().y() - 15) // 60, (event.pos().x() - 15) // 60
+	def mouse_press(self, event):
+		x, y = (event.pos().y() - 5) // 60, (event.pos().x() - 5) // 60
 		if 0 <= x <= 8 and 0 <= y <= 8:
 			self.selection = x, y
 			MyDisplayer.display(self)
+
+	def wheel_scroll(self, event):
+		self.board[self.selection] += 1 if event.angleDelta().y() > 0 else -1
+		self.board[self.selection] = np.clip(int(self.board[self.selection]), 0, 9)
+		self.result[self.selection] = 0
+		MyDisplayer.display(self)
 
 	def keyPressEvent(self, event):
 		if event.key() in self.KEY["tile"]:
@@ -62,26 +71,20 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 		MyDisplayer.display(self)
 
-	def wheelEvent(self, event):
-		self.board[self.selection] += 1 if event.angleDelta().y() > 0 else -1
-		self.board[self.selection] = np.clip(int(self.board[self.selection]), 0, 9)
-		self.result[self.selection] = 0
-		MyDisplayer.display(self)
-
 
 class MyRect:
 	SIZE = {"block": 60, "margin": 5, "padding": 10}
 
 	@staticmethod
 	def to_rect(i, j, rect_type):
-		size, margin, padding = MyRect.SIZE["block"], MyRect.SIZE["margin"], MyRect.SIZE["padding"]
+		block, margin, padding = MyRect.SIZE["block"], MyRect.SIZE["margin"], MyRect.SIZE["padding"]
 		if rect_type == "block":
-			return j * size + margin, i * size + margin, size, size
+			return j * block + margin, i * block + margin, block, block
 		if rect_type == "palace":
-			size *= 3
-			return j * size + margin, i * size + margin, size, size
+			block *= 3
+			return j * block + margin, i * block + margin, block, block
 		if rect_type == "selection":
-			return j * size + padding, i * size + padding, size - padding, size - padding
+			return j * block + padding, i * block + padding, block - padding, block - padding
 
 
 class MyDisplayer:
