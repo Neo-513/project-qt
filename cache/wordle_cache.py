@@ -6,18 +6,18 @@ PATH.update({
 	"compose": util.join_path(util.RESOURCE, "wordle", "cache_compose.pkl")
 })
 CACHE.update({
-	"compose": util.FileIO.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None
+	"compose": util.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None
 })
 
 
 def compute_index():
 	cache_index = {word: i for i, word in enumerate(ALLOWED_WORDS)}
-	util.FileIO.write(PATH["index"], cache_index)
+	util.write(PATH["index"], cache_index)
 
 
 def compute_compose():
 	cache_compose = {word: dict(Counter(word)) for word in ALLOWED_WORDS}
-	util.FileIO.write(PATH["compose"], cache_compose)
+	util.write(PATH["compose"], cache_compose)
 
 
 def compute_state():
@@ -25,6 +25,13 @@ def compute_state():
 	for (i, guess), (j, answer) in product(enumerate(ALLOWED_WORDS), repeat=2):
 		cache_state[i * TOTALITY + j] = __compute_state(guess, answer)
 	cache_state.tofile(PATH["state"])
+
+
+def compute_worst(worst):
+	tasks = ((guess, int(worst, 3)) for guess in ALLOWED_WORDS)
+	with Pool(processes=cpu_count()) as pool:
+		cache_worst = dict(pool.imap_unordered(__compute_worst, tasks))
+	util.write(PATH[f"worst_{worst}"], cache_worst)
 
 
 def __compute_state(guess, answer):
@@ -40,13 +47,6 @@ def __compute_state(guess, answer):
 			state[i] = "1"
 			compose[guess[i]] -= 1
 	return int("".join(state), 3)
-
-
-def compute_worst(worst):
-	tasks = ((guess, int(worst, 3)) for guess in ALLOWED_WORDS)
-	with Pool(processes=cpu_count()) as pool:
-		cache_worst = dict(pool.imap_unordered(__compute_worst, tasks))
-	util.FileIO.write(PATH[f"worst_{worst}"], cache_worst)
 
 
 def __compute_worst(args):
