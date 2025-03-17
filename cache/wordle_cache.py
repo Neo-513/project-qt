@@ -2,13 +2,6 @@ from src.wordle import *
 from collections import Counter
 from multiprocessing import cpu_count, Pool
 
-PATH.update({
-	"compose": util.join_path(util.RESOURCE, "wordle", "cache_compose.pkl")
-})
-CACHE.update({
-	"compose": util.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None
-})
-
 
 def compute_index():
 	cache_index = {word: i for i, word in enumerate(ALLOWED_WORDS)}
@@ -21,9 +14,9 @@ def compute_compose():
 
 
 def compute_state():
-	cache_state = np.zeros(TOTALITY ** 2, dtype=np.uint8)
+	cache_state = np.zeros(MyComputation.TOTALITY ** 2, dtype=np.uint8)
 	for (i, guess), (j, answer) in product(enumerate(ALLOWED_WORDS), repeat=2):
-		cache_state[i * TOTALITY + j] = __compute_state(guess, answer)
+		cache_state[i * MyComputation.TOTALITY + j] = __compute_state(guess, answer)
 	cache_state.tofile(PATH["state"])
 
 
