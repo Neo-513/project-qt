@@ -234,16 +234,16 @@ class MyMatrixer:
 class ExpectimaxAlgorithm:
 	@staticmethod
 	def solve(board, weight):
-		max_depth = 3 if np.max(board) >= 8 else 2
+		max_depth = 2 if np.max(board) <= 8 else 3
 		movement, _ = ExpectimaxAlgorithm.search(board, weight, 0, max_depth)
 		return movement
 
 	@staticmethod
 	def search(board, weight, depth, max_depth):
-		if max_depth == 3:
-			return ExpectimaxAlgorithm.__search_cache(board.tobytes(), weight, depth, max_depth)
-		else:
+		if max_depth == 2:
 			return ExpectimaxAlgorithm.__search_nocache(board, weight, depth, max_depth)
+		else:
+			return ExpectimaxAlgorithm.__search_cache(board.tobytes(), weight, depth, max_depth)
 
 	@staticmethod
 	@lru_cache(maxsize=100000)
