@@ -20,13 +20,6 @@ def compute_state():
 	cache.tofile(PATH["state"])
 
 
-def compute_worst(worst):
-	tasks = ((guess, int(worst, 3)) for guess in ALLOWED_WORDS)
-	with Pool(processes=cpu_count()) as pool:
-		cache = dict(pool.imap_unordered(__compute_worst, tasks))
-		util.write(PATH[f"worst_{worst}"], cache)
-
-
 def __compute_state(guess, answer):
 	state, compose, uncertain = ["0"] * 5, CACHE["compose"][answer].copy(), []
 	for i, g in enumerate(guess):
@@ -40,6 +33,13 @@ def __compute_state(guess, answer):
 			state[i] = "1"
 			compose[guess[i]] -= 1
 	return int("".join(state), 3)
+
+
+def compute_worst(worst):
+	tasks = ((guess, int(worst, 3)) for guess in ALLOWED_WORDS)
+	with Pool(processes=cpu_count()) as pool:
+		cache = dict(pool.imap_unordered(__compute_worst, tasks))
+		util.write(PATH[f"worst_{worst}"], cache)
 
 
 def __compute_worst(args):
