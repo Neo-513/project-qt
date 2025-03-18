@@ -145,6 +145,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 class MyDisplayer:
+	TILE = ["", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"]
 	GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
 	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 	COLOR = [
@@ -181,7 +182,7 @@ class MyDisplayer:
 		painter.setBrush(QColor(*MyDisplayer.COLOR[tile]))
 		painter.drawRect(rect)
 		painter.setPen(QColor(118, 110, 101))
-		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(2 ** tile).rstrip("1"))
+		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, MyDisplayer.TILE[tile])
 
 	@staticmethod
 	def track(previous, subsequent, movement):
