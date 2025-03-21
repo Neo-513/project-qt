@@ -1,6 +1,6 @@
 from maze_ui import Ui_MainWindow
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QPainter, QPixmap
+from PyQt6.QtGui import QColor, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QMainWindow
 import numpy as np
 import random
@@ -81,7 +81,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		self.ariadne, self.minotaur = random.sample(np.argwhere(self.labyrinth == 1).tolist(), 2)
 		self.ariadne, self.minotaur = tuple(self.ariadne), tuple(self.minotaur)
-		self.display(np.argwhere(self.labyrinth == 1))
+		self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
 		self.progressBar_reached.setValue(0)
 		self.progressBar_found.setValue(0)
 
@@ -116,13 +116,14 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.found.remove(self.ariadne) if self.ariadne in self.found else None
 		self.found.remove(self.minotaur) if self.minotaur in self.found else None
 
-		self.display(np.argwhere(self.labyrinth == 1))
-		self.display(self.reached, color=Qt.GlobalColor.darkGreen) if not replay else None
-		self.display(self.found, color=Qt.GlobalColor.green) if not replay else None
+		self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
+		self.display(self.reached, Qt.GlobalColor.darkGreen) if not replay else None
+		self.display(self.found, Qt.GlobalColor.green) if not replay else None
 
 	def replay(self):
 		self.search(replay=True)
-		self.display(np.argwhere(self.labyrinth == 1))
+		self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
+		self.display(self.reached, QColor(90, 90, 90))
 
 		for widget in self.widgets:
 			widget.setEnabled(False)
@@ -137,11 +138,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 	def timeout(self):
 		if self.timer.reached < len(self.reached):
-			self.display([self.reached[self.timer.reached]], color=Qt.GlobalColor.darkGreen)
+			self.display([self.reached[self.timer.reached]], Qt.GlobalColor.darkGreen)
 			self.timer.reached += 1
 			self.progressBar_reached.setValue(self.timer.reached)
 		elif self.timer.found < len(self.found):
-			self.display([self.found[self.timer.found]], color=Qt.GlobalColor.green)
+			self.display([self.found[self.timer.found]], Qt.GlobalColor.green)
 			self.timer.found += 1
 			self.progressBar_found.setValue(self.timer.found)
 		else:
@@ -149,7 +150,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			for widget in self.widgets:
 				widget.setEnabled(True)
 
-	def display(self, blocks, color=Qt.GlobalColor.gray):
+	def display(self, blocks, color):
 		size = self.block_size
 		size_ariadne = self.ariadne[1] * size, self.ariadne[0] * size
 		size_minotaur = self.minotaur[1] * size, self.minotaur[0] * size
@@ -169,18 +170,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 class MyGenerator:
 	@staticmethod
-	def __construct(p, i, j, visited, labyrinth):
-		if not 0 <= p[0] < visited.shape[0]:
-			return False
-		if not 0 <= p[1] < visited.shape[1]:
-			return False
-		if visited[p]:
-			return False
-		px, py = (p[0] - i) * 2 + 1, (p[1] - j) * 2 + 1
+	def __construct(pos, i, j, labyrinth):
+		px, py = pos[0] * 2 + 1, pos[1] * 2 + 1
 		labyrinth[px, py] = 1
 		labyrinth[px + i, py + j] = 1
 		labyrinth[px + i * 2, py + j * 2] = 1
-		return True
+		return
 
 	@staticmethod
 	def dfs(pos, visited, labyrinth):
@@ -193,10 +188,7 @@ class MyGenerator:
 				continue
 			if visited[p]:
 				continue
-			px, py = pos[0] * 2 + 1, pos[1] * 2 + 1
-			labyrinth[px, py] = 1
-			labyrinth[px + i, py + j] = 1
-			labyrinth[px + i * 2, py + j * 2] = 1
+			MyGenerator.__construct(pos, i, j, labyrinth)
 			MyGenerator.dfs(p, visited, labyrinth)
 
 	@staticmethod
@@ -213,10 +205,7 @@ class MyGenerator:
 					continue
 				if visited[p]:
 					continue
-				px, py = pos[0] * 2 + 1, pos[1] * 2 + 1
-				labyrinth[px, py] = 1
-				labyrinth[px + i, py + j] = 1
-				labyrinth[px + i * 2, py + j * 2] = 1
+				MyGenerator.__construct(pos, i, j, labyrinth)
 				visited[p] = 1
 				queue.add(p)
 
@@ -239,17 +228,17 @@ class MySearcher:
 
 	@staticmethod
 	def bfs(visited, params):
-		queue, nodes = [params["ariadne"]], {}
+		queue, visited[(0, 0)], nodes = [params["ariadne"]], 1, {}
 		while queue:
 			pos = queue.pop(0)
 			if pos == params["minotaur"]:
 				break
-			visited[pos] = 1
 			params["reached"].append(pos)
 			for i, j in DIRECTION:
 				p = pos[0] + i, pos[1] + j
 				if params["labyrinth"][p] == 0 or visited[p]:
 					continue
+				visited[pos] = 1
 				queue.append(p)
 				nodes[p] = pos
 		node = params["minotaur"]
