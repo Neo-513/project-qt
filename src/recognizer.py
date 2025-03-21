@@ -9,89 +9,79 @@ import sys
 import torch
 import util
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE = 28 * 28, 500, 10
-MODEL = util.join_path(util.RESOURCE, "recognizer", "recognizer.pt")
-
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	pos = None
+	SIZE = {"canvas": (400, 400), "thumbnail": (28, 28)}
 
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../recognizer/brain"))
+		self.setWindowIcon(util.icon("../recognizer/logo"))
 
-		util.button(self.pushButton, self.recognize, "../recognizer/scan")
-		util.button(self.toolButton, self.clear, "clean")
+		self.label_canvas.setPixmap(util.pixmap(self.SIZE["canvas"], Qt.GlobalColor.white))
+		self.label_thumbnail.setPixmap(util.pixmap(self.SIZE["thumbnail"], Qt.GlobalColor.black))
+		self.label_canvas.mousePressEvent = self.mouse_press
+		self.label_canvas.mouseMoveEvent = self.mouse_move
 
-		self.model = NN().to(DEVICE)
-		self.model.load_state_dict(torch.load(MODEL, map_location=DEVICE))
-
-		self.canvas_size = self.label_canvas.minimumWidth(), self.label_canvas.minimumHeight()
-		self.thumbnail_size = self.label_thumbnail.minimumWidth(), self.label_thumbnail.minimumHeight()
-		self.label_canvas.setPixmap(QPixmap(*self.canvas_size))
-		self.label_thumbnail.setPixmap(QPixmap(*self.thumbnail_size))
-		self.clear()
+		self.model = NN().to(NN.DEVICE)
+		self.model.path = util.join_path(util.RESOURCE, "recognizer", "recognizer.pt")
+		self.model.load_state_dict(torch.load(self.model.path, map_location=NN.DEVICE))
 
 	def recognize(self):
-		array_thumbnail = self.thumbnail()
-		with torch.no_grad():
-			array_tensor = torch.from_numpy(np.array(array_thumbnail, np.float32))
-			array_reshape = array_tensor.reshape(-1, INPUT_SIZE).to(DEVICE)
-			output = self.model(array_reshape)
-			result = np.argmax(output.cpu().detach().numpy(), axis=1)[0]
-			self.label_result.setText(f"识别结果: {result}")
-
-	def thumbnail(self):
 		image = self.label_canvas.pixmap().toImage()
-		array_image = np.zeros((*self.canvas_size, 4), dtype=np.uint8)
-		for x, y in product(range(self.canvas_size[0]), range(self.canvas_size[1])):
-			array_image[x, y] = (255, 255, 255, 255) if image.pixel(x, y) == 4294967295 else (0, 0, 0, 255)
+		handwriting = int("FF000000", 16)
 
-		array_gray = cv2.cvtColor(array_image, cv2.COLOR_RGB2GRAY)
-		array_threshold = cv2.threshold(array_gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-		array_thumbnail = cv2.resize(array_threshold.T, self.thumbnail_size)
+		threshold = np.zeros(self.SIZE["canvas"], dtype=np.uint8)
+		for pos in product(range(threshold.shape[0]), range(threshold.shape[1])):
+			if image.pixel(*pos) == handwriting:
+				threshold[pos] = 255
 
-		image = QImage(array_thumbnail.data, *self.thumbnail_size, self.thumbnail_size[0], QImage.Format.Format_Indexed8)
-		self.label_thumbnail.setPixmap(QPixmap().fromImage(image, Qt.ImageConversionFlag.AutoColor))
-		return array_thumbnail
+		thumb = cv2.resize(threshold.T, self.SIZE["thumbnail"])
+		pixmap_thumbnail = QPixmap().fromImage(QImage(thumb, *thumb.shape, QImage.Format.Format_Indexed8))
+		self.label_thumbnail.setPixmap(pixmap_thumbnail)
 
-	def mousePressEvent(self, a0):
-		self.pos = a0.pos()
-
-	def mouseMoveEvent(self, a0):
-		pixmap = self.label_canvas.pixmap()
-		with QPainter(pixmap) as painter:
-			painter.setPen(QPen(Qt.GlobalColor.black, 15))
-			painter.drawLine(self.pos, a0.pos())
-		self.label_canvas.setPixmap(pixmap)
-		self.pos = a0.pos()
-
-	def clear(self):
 		pixmap_canvas = self.label_canvas.pixmap()
 		pixmap_canvas.fill(Qt.GlobalColor.white)
 		self.label_canvas.setPixmap(pixmap_canvas)
 
-		pixmap_thumbnail = self.label_thumbnail.pixmap()
-		pixmap_thumbnail.fill(Qt.GlobalColor.black)
-		self.label_thumbnail.setPixmap(pixmap_thumbnail)
+		with torch.no_grad():
+			array_tensor = torch.from_numpy(np.array(thumb, np.float32))
+			array_reshape = array_tensor.reshape(-1, NN.SIZE["input"]).to(NN.DEVICE)
+			output = self.model(array_reshape)
+			result = np.argmax(output.cpu().detach().numpy(), axis=1)[0]
+			self.label_result.setText(f"识别结果: {result}")
 
-		self.label_result.clear()
+	def keyPressEvent(self, event):
+		if event.key() == Qt.Key.Key_Return:
+			self.recognize()
+
+	def mouse_press(self, event):
+		self.label_canvas.pos = event.pos()
+
+	def mouse_move(self, event):
+		pixmap = self.label_canvas.pixmap()
+		with QPainter(pixmap) as painter:
+			painter.setPen(QPen(Qt.GlobalColor.black, 15))
+			painter.drawLine(self.label_canvas.pos, event.pos())
+		self.label_canvas.setPixmap(pixmap)
+		self.label_canvas.pos = event.pos()
 
 
 class NN(torch.nn.Module):
+	SIZE = {"input": 28 * 28, "hidden": 500, "output": 10}
+	DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 	def __init__(self):
 		super().__init__()
-		self.l1 = torch.nn.Linear(INPUT_SIZE, HIDDEN_SIZE)
+		self.l1 = torch.nn.Linear(NN.SIZE["input"], NN.SIZE["hidden"])
 		self.relu = torch.nn.ReLU()
-		self.l2 = torch.nn.Linear(HIDDEN_SIZE, OUTPUT_SIZE)
+		self.l2 = torch.nn.Linear(NN.SIZE["hidden"], NN.SIZE["output"])
 
 	def forward(self, x):
-		output = self.l1(x)
-		output = self.relu(output)
-		output = self.l2(output)
-		return output
+		result_input = self.l1(x)
+		result_hidden = self.relu(result_input)
+		result_output = self.l2(result_hidden)
+		return result_output
 
 
 if __name__ == "__main__":
