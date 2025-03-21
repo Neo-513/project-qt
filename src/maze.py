@@ -7,7 +7,7 @@ import random
 import sys
 import util
 
-DIRECTION = ((-1, 0), (1, 0), (0, -1), (0, 1))
+DIRECTION = ((0, -1), (0, 1), (-1, 0), (1, 0))
 GENERATOR = {
 	"深度优先(DFS)": "dfs",
 	"广度优先(BFS)": "bfs",
@@ -31,47 +31,35 @@ SEARCHER = {
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	labyrinth, ariadne, minotaur = None, None, None
-	reached, found, algorithm = [], [], None
-	block_size = None
-
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../maze/logo"))
 
-		util.button(self.pushButton_generate, self.generate, "")
-		util.button(self.pushButton_search, self.search, "")
-		util.button(self.pushButton_replay, self.replay, "")
-		self.horizontalSlider_row.valueChanged.connect(lambda: self.label_row.setText(f"行数({self.horizontalSlider_row.value():02})"))
-		self.horizontalSlider_col.valueChanged.connect(lambda: self.label_col.setText(f"列数({self.horizontalSlider_col.value():02})"))
-
-		self.timer = util.timer(10, self.timeout)
+		util.button(self.pushButton_generate, self.generate, "../maze/generate")
+		util.button(self.pushButton_search, self.search, "../maze/search")
+		util.button(self.pushButton_replay, self.replay, "../maze/replay")
+		self.horizontalSlider.valueChanged.connect(lambda: self.label_maze.setText(f"层级({self.horizontalSlider.value():02})"))
 		self.comboBox_generate.addItems(GENERATOR)
 		self.comboBox_search.addItems(SEARCHER)
-		self.widgets = (
-			self.horizontalSlider_row, self.horizontalSlider_col, self.comboBox_generate, self.comboBox_search,
-			self.pushButton_generate, self.pushButton_search, self.pushButton_replay
-		)
+		self.label_canvas.setPixmap(QPixmap(self.label_canvas.size()))
+
+		self.timer = util.timer(10, self.timeout)
+		self.labyrinth = self.ariadne = self.minotaur = self.algorithm = None
+		self.reached, self.found, self.sz = [], [], {"canvas": 600, "block": 0.0}
 		self.generate()
 
 	def generate(self):
+		if self.timer.isActive():
+			self.timer.stop()
 		self.reached.clear()
 		self.found.clear()
 		self.algorithm = None
 
-		r, c = self.horizontalSlider_row.value(), self.horizontalSlider_col.value()
-		row_count, col_count = r * 2 + 1, c * 2 + 1
-		visited = np.zeros((r, c), dtype=np.uint8)
-		self.labyrinth = np.zeros((row_count, col_count), dtype=np.uint8)
-
-		frame_size = self.frame.minimumWidth(), self.frame.minimumHeight()
-		self.block_size = round(min(frame_size[0] / col_count, frame_size[1] / row_count), 4)
-		self.label_canvas.setFixedSize(int(col_count * self.block_size), int(row_count * self.block_size))
-
-		pixmap = QPixmap(self.label_canvas.size())
-		pixmap.fill(Qt.GlobalColor.black)
-		self.label_canvas.setPixmap(pixmap)
+		visited = np.zeros((self.horizontalSlider.value(), self.horizontalSlider.value()), dtype=np.uint8)
+		shp = visited.shape[0] * 2 + 1, visited.shape[1] * 2 + 1
+		self.sz["block"] = round(min(self.sz["canvas"] / shp[1], self.sz["canvas"] / shp[0]), 4)
+		self.labyrinth = np.zeros(shp, dtype=np.uint8)
 
 		algorithm = GENERATOR[self.comboBox_generate.currentText()]
 		if algorithm == "dfs":
@@ -79,15 +67,24 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if algorithm == "bfs":
 			MyGenerator.bfs(visited, self.labyrinth)
 
+		pixmap = self.label_canvas.pixmap()
+		pixmap.fill(Qt.GlobalColor.black)
+		self.label_canvas.setPixmap(pixmap)
+
 		self.ariadne, self.minotaur = random.sample(np.argwhere(self.labyrinth == 1).tolist(), 2)
 		self.ariadne, self.minotaur = tuple(self.ariadne), tuple(self.minotaur)
 		self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
-		self.progressBar_reached.setValue(0)
-		self.progressBar_found.setValue(0)
 
 	def search(self, replay=False):
+		if self.timer.isActive():
+			self.timer.stop()
+
 		algorithm = SEARCHER[self.comboBox_search.currentText()]
 		if self.algorithm == algorithm:
+			if not replay:
+				self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
+				self.display(self.reached, Qt.GlobalColor.darkGreen)
+				self.display(self.found, Qt.GlobalColor.green)
 			return
 		self.reached.clear()
 		self.found.clear()
@@ -106,11 +103,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.algorithm == "bfs":
 			MySearcher.bfs(np.zeros(self.labyrinth.shape, dtype=np.uint8), params)
 
-		self.progressBar_reached.setMaximum(len(self.reached))
-		self.progressBar_reached.setValue(self.progressBar_reached.maximum())
-		self.progressBar_found.setMaximum(len(self.found))
-		self.progressBar_found.setValue(self.progressBar_found.maximum())
-
 		self.reached.remove(self.ariadne) if self.ariadne in self.reached else None
 		self.reached.remove(self.minotaur) if self.minotaur in self.reached else None
 		self.found.remove(self.ariadne) if self.ariadne in self.found else None
@@ -125,13 +117,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.display(np.argwhere(self.labyrinth == 1), Qt.GlobalColor.gray)
 		self.display(self.reached, QColor(90, 90, 90))
 
-		for widget in self.widgets:
-			widget.setEnabled(False)
-		self.progressBar_reached.setValue(0)
-		self.progressBar_reached.setMaximum(len(self.reached))
-		self.progressBar_found.setValue(0)
-		self.progressBar_found.setMaximum(len(self.found))
-
 		self.timer.reached = 0
 		self.timer.found = 0
 		self.timer.start()
@@ -140,32 +125,26 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.timer.reached < len(self.reached):
 			self.display([self.reached[self.timer.reached]], Qt.GlobalColor.darkGreen)
 			self.timer.reached += 1
-			self.progressBar_reached.setValue(self.timer.reached)
 		elif self.timer.found < len(self.found):
 			self.display([self.found[self.timer.found]], Qt.GlobalColor.green)
 			self.timer.found += 1
-			self.progressBar_found.setValue(self.timer.found)
 		else:
 			self.timer.stop()
-			for widget in self.widgets:
-				widget.setEnabled(True)
 
 	def display(self, blocks, color):
-		size = self.block_size
-		size_ariadne = self.ariadne[1] * size, self.ariadne[0] * size
-		size_minotaur = self.minotaur[1] * size, self.minotaur[0] * size
-
 		pixmap = self.label_canvas.pixmap()
 		with QPainter(pixmap) as painter:
 			painter.setPen(Qt.PenStyle.NoPen)
-			painter.setBrush(color)
-			for block in blocks:
-				painter.drawRect(QRectF(block[1] * size, block[0] * size, size, size))
-			painter.setBrush(Qt.GlobalColor.blue)
-			painter.drawRect(QRectF(*size_ariadne, size, size))
-			painter.setBrush(Qt.GlobalColor.red)
-			painter.drawRect(QRectF(*size_minotaur, size, size))
+			self.draw(painter, blocks, color)
+			self.draw(painter, (self.ariadne,), Qt.GlobalColor.blue)
+			self.draw(painter, (self.minotaur,), Qt.GlobalColor.red)
 		self.label_canvas.setPixmap(pixmap)
+
+	def draw(self, painter, ps, color):
+		s = self.sz["block"]
+		painter.setBrush(color)
+		for p in ps:
+			painter.drawRect(QRectF(p[1] * s, p[0] * s, s, s))
 
 
 class MyGenerator:
