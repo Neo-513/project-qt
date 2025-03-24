@@ -1,6 +1,6 @@
 from game2048_ui import Ui_MainWindow
 from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import lru_cache
 from itertools import product
@@ -41,11 +41,15 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label.mousePressEvent = self.mouse_press
 		self.label.mouseReleaseEvent = self.mouse_release
 
+		self.skeleton = util.pixmap((475, 475), QColor(187, 173, 160))
+		with QPainter(self.skeleton) as painter:
+			for groove in MyDisplayer.GROOVE.values():
+				MyDisplayer.draw(painter, 0, groove)
+
 		self.board = np.zeros((4, 4), dtype=np.int8)
-		self.skeleton = MyDisplayer.skeletonize()
-		self.mouse_pos = None
 		self.timer1 = util.timer(15, self.timeout1)
 		self.timer2 = util.timer(160, self.timeout2)
+		self.mouse_pos = None
 		self.restart()
 
 	def restart(self):
@@ -145,7 +149,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 class MyDisplayer:
-	TILE = ["", "2", "4", "8", "16", "32", "64", "128", "256", "512", "1024", "2048"]
+	TILE = tuple(str(1 << i).rstrip("1") for i in range(12))
 	GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
 	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
 	COLOR = [
@@ -156,15 +160,6 @@ class MyDisplayer:
 		"L": lambda x, y: MyDisplayer.GROOVE[x, y], "R": lambda x, y: MyDisplayer.GROOVE[3 - x, 3 - y],
 		"U": lambda x, y: MyDisplayer.GROOVE[y, 3 - x], "D": lambda x, y: MyDisplayer.GROOVE[3 - y, x]
 	}
-
-	@staticmethod
-	def skeletonize():
-		pixmap = QPixmap(475, 475)
-		pixmap.fill(QColor(187, 173, 160))
-		with QPainter(pixmap) as painter:
-			for groove in MyDisplayer.GROOVE.values():
-				MyDisplayer.draw(painter, 0, groove)
-		return pixmap
 
 	@staticmethod
 	def display(self):
