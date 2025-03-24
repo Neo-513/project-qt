@@ -12,6 +12,7 @@ import util
 
 class MyCore(QMainWindow, Ui_MainWindow):
 	SIZE = {"canvas": (400, 400), "thumbnail": (28, 28)}
+	MODEL = util.join_path(util.RESOURCE, "recognizer", "recognizer.pt")
 
 	def __init__(self):
 		super().__init__()
@@ -23,37 +24,34 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label_canvas.mousePressEvent = self.mouse_press
 		self.label_canvas.mouseMoveEvent = self.mouse_move
 
-		self.model = NN().to(NN.DEVICE)
-		self.model.path = util.join_path(util.RESOURCE, "recognizer", "recognizer.pt")
-		self.model.load_state_dict(torch.load(self.model.path, map_location=NN.DEVICE))
+		self.model = NN(NN.MNIST).to(NN.DEVICE)
+		self.model.load_state_dict(torch.load(self.MODEL, map_location=NN.DEVICE))
 
-	def recognize(self):
+	def process(self):
 		image = self.label_canvas.pixmap().toImage()
-		handwriting = int("FF000000", 16)
-
-		threshold = np.zeros(self.SIZE["canvas"], dtype=np.uint8)
-		for pos in product(range(threshold.shape[0]), range(threshold.shape[1])):
-			if image.pixel(*pos) == handwriting:
-				threshold[pos] = 255
-
-		thumb = cv2.resize(threshold.T, self.SIZE["thumbnail"])
-		pixmap_thumbnail = QPixmap().fromImage(QImage(thumb, *thumb.shape, QImage.Format.Format_Indexed8))
-		self.label_thumbnail.setPixmap(pixmap_thumbnail)
+		bits = image.bits()
+		bits.setsize(image.sizeInBytes())
+		threshold = 255 - np.frombuffer(bits, dtype=np.uint8).reshape((*self.SIZE["canvas"], 4))[:, :, 0]
 
 		pixmap_canvas = self.label_canvas.pixmap()
 		pixmap_canvas.fill(Qt.GlobalColor.white)
 		self.label_canvas.setPixmap(pixmap_canvas)
 
+		thumbnail = cv2.resize(threshold, self.SIZE["thumbnail"])
+		pixmap_thumbnail = QPixmap().fromImage(QImage(thumbnail, *thumbnail.shape, QImage.Format.Format_Indexed8))
+		self.label_thumbnail.setPixmap(pixmap_thumbnail)
+		return np.array(thumbnail, np.float32)
+
+	def recognize(self, inputs):
 		with torch.no_grad():
-			array_tensor = torch.from_numpy(np.array(thumb, np.float32))
-			array_reshape = array_tensor.reshape(-1, NN.SIZE["input"]).to(NN.DEVICE)
-			output = self.model(array_reshape)
-			result = np.argmax(output.cpu().detach().numpy(), axis=1)[0]
-			self.label_result.setText(f"识别结果: {result}")
+			tensor = torch.from_numpy(inputs).reshape(-1, NN.MNIST["input"]).to(NN.DEVICE)
+			outputs = self.model(tensor)
+			_, result = torch.max(outputs, dim=1)
+			self.label_result.setText(f"识别结果: {result.item()}")
 
 	def keyPressEvent(self, event):
 		if event.key() == Qt.Key.Key_Return:
-			self.recognize()
+			self.recognize(self.process())
 
 	def mouse_press(self, event):
 		self.label_canvas.pos = event.pos()
@@ -68,20 +66,19 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 class NN(torch.nn.Module):
-	SIZE = {"input": 28 * 28, "hidden": 500, "output": 10}
 	DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+	MNIST = {"input": 28 * 28, "hidden": 512, "output": 10}
 
-	def __init__(self):
+	def __init__(self, size):
 		super().__init__()
-		self.l1 = torch.nn.Linear(NN.SIZE["input"], NN.SIZE["hidden"])
 		self.relu = torch.nn.ReLU()
-		self.l2 = torch.nn.Linear(NN.SIZE["hidden"], NN.SIZE["output"])
+		self.fc1 = torch.nn.Linear(size["input"], size["hidden"])
+		self.fc2 = torch.nn.Linear(size["hidden"], size["output"])
 
-	def forward(self, x):
-		result_input = self.l1(x)
-		result_hidden = self.relu(result_input)
-		result_output = self.l2(result_hidden)
-		return result_output
+	def forward(self, inputs):
+		outputs = self.relu(self.fc1(inputs))
+		outputs = self.fc2(outputs)
+		return outputs
 
 
 if __name__ == "__main__":
