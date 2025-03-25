@@ -4,31 +4,27 @@ import matplotlib.pyplot as plt
 import os
 import torchvision
 
-BATCH_SIZE, LEARNING_RATE, EPOCH = 64, 0.001, 10
+HYPERPARAMETER = {"batch_size": 64, "learning_rate": 0.001, "epoch": 10}
 TRANSFORM = torchvision.transforms.ToTensor()
-PATH = {
-	"root": os.getcwd(),
-	"model": os.path.join(os.getcwd(), "recognizer.pt")
-}
 DATASET = {
-	"train": torchvision.datasets.MNIST(train=True, root=PATH["root"], transform=TRANSFORM, download=True),
-	"test": torchvision.datasets.MNIST(train=False, root=PATH["root"], transform=TRANSFORM, download=True)
+	"train": torchvision.datasets.MNIST(train=True, root=os.getcwd(), transform=TRANSFORM, download=False),
+	"test": torchvision.datasets.MNIST(train=False, root=os.getcwd(), transform=TRANSFORM, download=False)
 }
 LOADER = {
-	"train": DataLoader(dataset=DATASET["train"], batch_size=BATCH_SIZE, shuffle=True),
-	"test": DataLoader(dataset=DATASET["test"], batch_size=BATCH_SIZE, shuffle=True)
+	"train": DataLoader(dataset=DATASET["train"], batch_size=HYPERPARAMETER["batch_size"], shuffle=True),
+	"test": DataLoader(dataset=DATASET["test"], batch_size=HYPERPARAMETER["batch_size"], shuffle=True)
 }
 
 
 def train_model():
 	model = NN(NN.MNIST).to(NN.DEVICE)
 	criterion = torch.nn.CrossEntropyLoss()
-	optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+	optimizer = torch.optim.Adam(model.parameters(), lr=HYPERPARAMETER["learning_rate"])
 
-	losses, batch = [], len(LOADER["train"]) // BATCH_SIZE
-	for epoch in range(EPOCH):
+	losses, batch = [], len(LOADER["train"]) // HYPERPARAMETER["batch_size"]
+	for epoch in range(HYPERPARAMETER["epoch"]):
 		for i, (datas, labels) in enumerate(LOADER["train"]):
-			datas = datas.reshape(-1, NN.MNIST["input"]).to(NN.DEVICE)
+			datas = util.cast(datas).reshape(-1, NN.MNIST["input"]).to(NN.DEVICE)
 			labels = labels.to(NN.DEVICE)
 			outputs = model(datas)
 
@@ -40,7 +36,7 @@ def train_model():
 			if i % batch == 0:
 				losses.append(loss.item())
 				print(f"EPOCH[{epoch + 1:02}] LOSS[{losses[-1]:.4f}]")
-	torch.save(model.state_dict(), PATH["model"])
+	torch.save(model.state_dict(), MODEL)
 
 	plt.plot(losses)
 	plt.show()
@@ -48,7 +44,7 @@ def train_model():
 
 def test_model():
 	model = NN(NN.MNIST).to(NN.DEVICE)
-	model.load_state_dict(torch.load(PATH["model"], map_location=NN.DEVICE))
+	model.load_state_dict(torch.load(MODEL, map_location=NN.DEVICE))
 
 	with torch.no_grad():
 		correct = total = 0
@@ -58,7 +54,7 @@ def test_model():
 			outputs = model(datas)
 
 			_, prediction = torch.max(outputs, dim=1)
-			correct += (prediction == labels).sum().item()
+			correct += util.cast(prediction == labels).sum().item()
 			total += labels.shape[0]
 	print(f"ACCURACY[{100 * correct / total:.2f}%]")
 
