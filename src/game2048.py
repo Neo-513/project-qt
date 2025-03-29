@@ -36,12 +36,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setWindowIcon(util.icon("../game2048/logo"))
 
 		util.button(self.pushButton, self.restart, tip="新游戏")
-		util.button(self.toolButton_hinting, self.hinting, "../game2048/hint", tip="提示", ico_size=32)
-		util.button(self.toolButton_botting, self.botting, "../game2048/nonbotting", tip="托管", ico_size=32)
+		util.button(self.toolButton, self.botting, "../game2048/nonbotting", ico_size=32)
 		self.label.mousePressEvent = self.mouse_press
 		self.label.mouseReleaseEvent = self.mouse_release
 
-		self.skeleton = util.pixmap((475, 475), QColor(187, 173, 160))
+		self.skeleton = util.pixmap(self.label, size=self.label.size(), color=QColor(187, 173, 160))
 		with QPainter(self.skeleton) as painter:
 			for groove in MyDisplayer.GROOVE.values():
 				MyDisplayer.draw(painter, 0, groove)
@@ -57,8 +56,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.timer1.stop()
 		if self.timer2.isActive():
 			self.timer2.stop()
-		self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
-		self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+		self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 		self.board.fill(0)
 		MyMatrixer.add(self.board)
 		MyMatrixer.add(self.board)
@@ -89,20 +87,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			movement = "D" if dy >= 0 else "U"
 		self.act(movement)
 
-	def hinting(self):
-		if self.timer1.isActive() or self.timer2.isActive():
-			return
-		self.act(ExpectimaxAlgorithm.solve(self.board, MyCore.WEIGHT))
-
 	def botting(self):
 		if self.timer2.isActive():
 			self.timer2.stop()
-			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
-			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			MyDisplayer.display(self)
 		else:
-			self.toolButton_botting.setIcon(util.icon("../game2048/botting"))
-			self.toolButton_hinting.setIcon(util.icon("../game2048/nonhint"))
+			self.toolButton.setIcon(util.icon("../game2048/botting"))
 			self.timer2.start()
 
 	def timeout1(self):
@@ -135,15 +126,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.timer1.start()
 
 		if MyMatrixer.win(self.board):
-			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
-			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			util.dialog("You win", "success")
 			return self.restart()
 		if not np.array_equal(self.board, previous):
 			MyMatrixer.add(self.board)
 		if MyMatrixer.lose(self.board):
-			self.toolButton_botting.setIcon(util.icon("../game2048/nonbotting"))
-			self.toolButton_hinting.setIcon(util.icon("../game2048/hint"))
+			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			util.dialog("You lose", "error")
 			return self.restart()
 
