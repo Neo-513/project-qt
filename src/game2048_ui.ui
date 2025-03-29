@@ -27,17 +27,7 @@
        <number>10</number>
       </property>
       <item>
-       <widget class="QToolButton" name="toolButton_hinting">
-        <property name="focusPolicy">
-         <enum>Qt::FocusPolicy::NoFocus</enum>
-        </property>
-        <property name="styleSheet">
-         <string notr="true">icon-size: 40px; border: none</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QToolButton" name="toolButton_botting">
+       <widget class="QToolButton" name="toolButton">
         <property name="focusPolicy">
          <enum>Qt::FocusPolicy::NoFocus</enum>
         </property>
