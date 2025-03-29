@@ -35,7 +35,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../game2048/logo"))
 
-		util.button(self.pushButton, self.restart, tip="新游戏")
+		util.button(self.pushButton, self.restart)
 		util.button(self.toolButton, self.botting, "../game2048/nonbotting", ico_size=32)
 		self.label.mousePressEvent = self.mouse_press
 		self.label.mouseReleaseEvent = self.mouse_release
