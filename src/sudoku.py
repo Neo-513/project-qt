@@ -1,6 +1,6 @@
 from sudoku_ui import Ui_MainWindow
 from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from collections import defaultdict
 from itertools import product
@@ -14,6 +14,8 @@ CACHE = {"graph": np.fromfile(PATH["graph"], dtype=np.uint8).reshape(729, 324) i
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
+	SIZE = {"block": 60, "gap": 5}
+	OFFSET = np.array((1, 1, -2, -2)) * SIZE["gap"]
 	KEY = {
 		"tile": {getattr(Qt.Key, f"Key_{i}"): i for i in range(1, 10)},
 		"direction": {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0), Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}
@@ -24,103 +26,91 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
+		self.skeleton = util.pixmap(self.label, size=self.label.size(), color=Qt.GlobalColor.transparent)
+		with QPainter(self.skeleton) as painter:
+			painter.setPen(QPen(Qt.GlobalColor.gray, 1))
+			for pos in product(range(9), repeat=2):
+				painter.drawRect(QRect(*np.array((*pos[::-1], 1, 1)) * self.SIZE["block"]))
+			painter.setPen(QPen(Qt.GlobalColor.black, 2))
+			for pos in product(range(3), repeat=2):
+				painter.drawRect(QRect(*np.array((*pos[::-1], 1, 1)) * self.SIZE["block"] * 3))
+			painter.drawRect(1, 1, self.skeleton.width() - 2, self.skeleton.height() - 2)
+
+		self.label.setPixmap(self.skeleton.copy())
 		self.label.mousePressEvent = self.mouse_press
 		self.label.wheelEvent = self.wheel_scroll
 
-		self.board = np.zeros((9, 9), dtype=int)
-		self.result = np.zeros((9, 9), dtype=int)
-		self.selection = (0, 0)
-		self.skeleton = MyDisplayer.skeletonize()
-		MyDisplayer.display(self)
+		self.board = np.zeros((9, 9), dtype=np.int8)
+		self.selection = self.previous = np.array((0, 0))
+		self.__select()
 
 	def mouse_press(self, event):
-		x, y = (event.pos().y() - 5) // 60, (event.pos().x() - 5) // 60
-		if 0 <= x <= 8 and 0 <= y <= 8:
-			self.selection = x, y
-			MyDisplayer.display(self)
+		pos = np.array((event.pos().y(), event.pos().x())) // self.SIZE["block"]
+		self.previous = self.selection.copy()
+		self.selection = np.clip(pos, 0, 8)
+		self.__select()
 
 	def wheel_scroll(self, event):
-		self.board[self.selection] += 1 if event.angleDelta().y() > 0 else -1
-		self.board[self.selection] = np.clip(int(self.board[self.selection]), 0, 9)
-		self.result[self.selection] = 0
-		MyDisplayer.display(self)
+		self.board[tuple(self.selection)] += 1 if event.angleDelta().y() > 0 else -1
+		self.board[tuple(self.selection)] = np.clip(self.board[tuple(self.selection)], 0, 9)
+		self.__display()
 
 	def keyPressEvent(self, event):
-		if event.key() in self.KEY["tile"]:
-			self.board[self.selection] = self.KEY["tile"][event.key()]
-		elif event.key() in self.KEY["direction"]:
-			offset = self.KEY["direction"][util.cast(event.key())]
-			self.selection = (
-				np.clip(self.selection[0] + offset[0], 0, 8),
-				np.clip(self.selection[1] + offset[1], 0, 8)
-			)
-		elif event.key() == Qt.Key.Key_Backspace:
-			self.board[self.selection] = 0
-			self.result[self.selection] = 0
-		elif event.key() == Qt.Key.Key_Delete:
-			self.board.fill(0)
-			self.result.fill(0)
-		elif event.key() == Qt.Key.Key_Return:
+		if event.key() == Qt.Key.Key_Return:
 			result = DancingLinksAlgorithm.solve(self.board)
 			if isinstance(result, str):
 				util.dialog(result, "error")
 			else:
-				self.result = result
-				util.dialog("求解成功", "success")
+				self.__display(result=result)
+			return
+
+		if event.key() in self.KEY["tile"]:
+			self.board[tuple(self.selection)] = self.KEY["tile"][event.key()]
+		elif event.key() == Qt.Key.Key_Backspace:
+			self.board[tuple(self.selection)] = 0
+		elif event.key() in self.KEY["direction"]:
+			self.previous = self.selection.copy()
+			self.selection = np.clip(self.selection + self.KEY["direction"][event.key()], 0, 8)
+		elif event.key() == Qt.Key.Key_Delete:
+			self.board.fill(0)
+			self.label.setPixmap(self.skeleton.copy())
 		else:
 			return
-		MyDisplayer.display(self)
+		self.__display()
 
-
-class MyRect:
-	SIZE = {"block": 60, "margin": 5, "padding": 10}
-
-	@staticmethod
-	def to_rect(i, j, rect_type):
-		block, margin, padding = MyRect.SIZE["block"], MyRect.SIZE["margin"], MyRect.SIZE["padding"]
-		if rect_type == "block":
-			return j * block + margin, i * block + margin, block, block
-		if rect_type == "palace":
-			block *= 3
-			return j * block + margin, i * block + margin, block, block
-		if rect_type == "selection":
-			return j * block + padding, i * block + padding, block - padding, block - padding
-
-
-class MyDisplayer:
-	RECT = {
-		"block": {(i, j): MyRect.to_rect(i, j, "block") for i, j in product(range(9), repeat=2)},
-		"palace": tuple(MyRect.to_rect(i, j, "palace") for i, j in product(range(3), repeat=2)),
-		"selection": {(i, j): MyRect.to_rect(i, j, "selection") for i, j in product(range(9), repeat=2)}
-	}
-
-	@staticmethod
-	def skeletonize():
-		size = MyRect.SIZE["block"] * 9 + MyRect.SIZE["margin"] * 2
-		pixmap = QPixmap(size, size)
-		pixmap.fill(Qt.GlobalColor.transparent)
+	def __select(self):
+		pixmap = self.label.pixmap()
 		with QPainter(pixmap) as painter:
-			painter.setBrush(QColor(Qt.GlobalColor.transparent))
-			painter.setPen(QPen(Qt.GlobalColor.gray, 1))
-			for block in MyDisplayer.RECT["block"].values():
-				painter.drawRect(QRect(*block))
-			painter.setPen(QPen(Qt.GlobalColor.black, 2))
-			for palace in MyDisplayer.RECT["palace"]:
-				painter.drawRect(QRect(*palace))
-		return pixmap
+			self.__rect(painter, self.previous, QColor(243, 243, 243))
+			self.__rect(painter, self.selection, QColor(200, 0, 0))
+		self.label.setPixmap(pixmap)
 
-	@staticmethod
-	def display(self):
-		pixmap = self.skeleton.copy()
+	def __display(self, result=None):
+		pixmap = self.label.pixmap()
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("Arial", 24, QFont.Weight.Black))
-			painter.setBrush(Qt.GlobalColor.transparent)
-			for pos, block in MyDisplayer.RECT["block"].items():
-				painter.setPen(Qt.GlobalColor.black if self.board[pos] else Qt.GlobalColor.gray)
-				painter.drawText(QRect(*block), Qt.AlignmentFlag.AlignCenter, str(self.board[pos] or self.result[pos] or ""))
-			painter.setPen(QPen(QColor(200, 0, 0), 2))
-			painter.drawRect(QRect(*MyDisplayer.RECT["selection"][self.selection]))
+			painter.setPen(Qt.GlobalColor.transparent)
+			if result is None:
+				rect = np.array((*self.selection[::-1], 1, 1)) * self.SIZE["block"] + self.OFFSET * 2
+				painter.setBrush(QColor(243, 243, 243))
+				painter.drawRect(QRect(*rect))
+				painter.setBrush(Qt.GlobalColor.transparent)
+				self.__rect(painter, self.selection, Qt.GlobalColor.black, board=self.board)
+			else:
+				for pos in np.argwhere(self.board != 0):
+					self.__rect(painter, pos, Qt.GlobalColor.black, board=self.board)
+				for pos in np.argwhere(self.board == 0):
+					self.__rect(painter, pos, Qt.GlobalColor.gray, board=result)
 		self.label.setPixmap(pixmap)
+		self.__select()
+
+	def __rect(self, painter, pos, color, board=None):
+		painter.setPen(QPen(color, 2))
+		rect = np.array((*pos[::-1], 1, 1)) * self.SIZE["block"]
+		if board is None:
+			painter.drawRect(QRect(*(rect + self.OFFSET)))
+		else:
+			painter.drawText(QRect(*rect), Qt.AlignmentFlag.AlignCenter, str(board[tuple(pos)]).strip("0"))
 
 
 class DancingLinksAlgorithm:
@@ -167,7 +157,7 @@ class DancingLinksAlgorithm:
 	@staticmethod
 	def to_board(ans):
 		ans = np.array(ans)
-		board = np.zeros((9, 9), dtype=int)
+		board = np.zeros((9, 9), dtype=np.int8)
 		board[ans // 81, ans // 9 % 9] = ans % 9
 		return board
 
@@ -242,7 +232,7 @@ class DancingLinksAlgorithm:
 			if any(np.bincount(col)[1:] > 1):
 				return f"第{j + 1}列中有重复项"
 		for i, j in product(range(0, 9, 3), repeat=2):
-			palace = np.array(board[i:i + 3, j:j + 3]).flatten()
+			palace = np.array(board[i:i + 3, j:j + 3]).reshape(-1)
 			if any(np.bincount(palace)[1:] > 1):
 				return f"第{(i // 3) * 3 + j // 3 + 1}宫中有重复项"
 
