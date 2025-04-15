@@ -26,16 +26,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
-		self.skeleton = util.pixmap(self.label, size=self.label.size(), color=Qt.GlobalColor.transparent)
-		with QPainter(self.skeleton) as painter:
-			painter.setPen(QPen(Qt.GlobalColor.gray, 1))
-			for pos in product(range(9), repeat=2):
-				painter.drawRect(QRect(*np.array((*pos[::-1], 1, 1)) * self.SIZE["block"]))
-			painter.setPen(QPen(Qt.GlobalColor.black, 2))
-			for pos in product(range(3), repeat=2):
-				painter.drawRect(QRect(*np.array((*pos[::-1], 1, 1)) * self.SIZE["block"] * 3))
-			painter.drawRect(1, 1, self.skeleton.width() - 2, self.skeleton.height() - 2)
-
+		self.skeleton = util.pixmap(image="../static/sudoku/background")
 		self.label.setPixmap(self.skeleton.copy())
 		self.label.mousePressEvent = self.mouse_press
 		self.label.wheelEvent = self.wheel_scroll
