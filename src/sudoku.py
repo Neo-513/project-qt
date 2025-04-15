@@ -26,7 +26,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
-		self.skeleton = util.pixmap(image="../static/sudoku/background")
+		self.skeleton = util.pixmap(image=("sudoku", "background.png"))
 		self.label.setPixmap(self.skeleton.copy())
 		self.label.mousePressEvent = self.mouse_press
 		self.label.wheelEvent = self.wheel_scroll
