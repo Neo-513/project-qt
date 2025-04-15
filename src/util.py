@@ -33,8 +33,8 @@ def timer(interval, func):
 
 def pixmap(label=None, size=None, color=None, image=None):
 	if image:
-		if isinstance(image, str):
-			image = QImage(f"{image}.png")
+		if isinstance(image, tuple):
+			image = QImage(join_path(RESOURCE, *image))
 		pm = QPixmap().fromImage(image)
 	else:
 		if isinstance(size, QSize):
