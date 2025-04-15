@@ -40,12 +40,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label.mousePressEvent = self.mouse_press
 		self.label.mouseReleaseEvent = self.mouse_release
 
-		self.skeleton = util.pixmap(self.label, size=self.label.size(), color=QColor(187, 173, 160))
-		with QPainter(self.skeleton) as painter:
-			for groove in MyDisplayer.GROOVE.values():
-				MyDisplayer.draw(painter, 0, groove)
-
 		self.board = np.zeros((4, 4), dtype=np.int8)
+		self.skeleton = util.pixmap(label=self.label, image="../static/game2048/background")
 		self.timer1 = util.timer(15, self.timeout1)
 		self.timer2 = util.timer(160, self.timeout2)
 		self.mouse_pos = None
