@@ -1,9 +1,9 @@
 from wordle_ui import Ui_MainWindow
-from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QFont, QPainter, QPixmap
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QSizePolicy
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtWidgets import QApplication, QMainWindow, QSizePolicy
 from functools import partial
-from itertools import chain, product
+from itertools import product
 from string import ascii_lowercase
 import math
 import numpy as np
@@ -12,32 +12,12 @@ import random
 import sys
 import util
 
-QSS = {
-	"label": "color: %s; background-color: %s; border: %spx solid %s",
-	"button": (
-		"QPushButton {color: %s; background-color: %s; border-radius: 5px}"
-		"QPushButton:hover {background-color: %s}"
-		"QPushButton:pressed {background-color: %s}"
-	)
-}
-QSS_LABEL = {
-	"nontext": QSS["label"] % ("black", "white", 2, "rgb(211,214,218)"),
-	"text": QSS["label"] % ("black", "white", 2, "rgb(135,138,140)"),
-	"hint": QSS["label"] % ("rgb(181,184,188)", "white", 2, "rgb(211,214,218)"),
-	"hit": QSS["label"] % ("rgb(200,0,0)", "white", 2, "rgb(200,0,0)"),
-	"0": QSS["label"] % ("white", "rgb(120,124,126)", 0, "white"),
-	"1": QSS["label"] % ("white", "rgb(198,180,86)", 0, "white"),
-	"2": QSS["label"] % ("white", "rgb(112,169,97)", 0, "white")
-}
-QSS_BUTTON = {
-	None: QSS["button"] % ("black", "rgb(211,214,218)", "rgb(181,184,188)", "rgb(151,154,158)"),
-	"0": QSS["button"] % ("white", "rgb(120,124,126)", "rgb(90,94,96)", "rgb(60,64,66)"),
-	"1": QSS["button"] % ("white", "rgb(198,180,86)", "rgb(168,150,56)", "rgb(138,120,26)"),
-	"2": QSS["button"] % ("white", "rgb(112,169,97)", "rgb(82,139,67)", "rgb(52,109,37)")
-}
+ALLOWED_WORDS = tuple(util.read(util.join_path(util.RESOURCE, "wordle", "allowed_words.txt")).splitlines())
+POSSIBLE_WORDS = tuple(util.read(util.join_path(util.RESOURCE, "wordle", "possible_words.txt")).splitlines())
 
 PATH = {
 	"index": util.join_path(util.RESOURCE, "wordle", "cache_index.pkl"),
+	"compose": util.join_path(util.RESOURCE, "wordle", "cache_compose.pkl"),
 	"state": util.join_path(util.RESOURCE, "wordle", "cache_state.bin"),
 	"worst_00000": util.join_path(util.RESOURCE, "wordle", "cache_worst_00000.pkl"),
 	"worst_00001": util.join_path(util.RESOURCE, "wordle", "cache_worst_00001.pkl"),
@@ -47,79 +27,93 @@ PATH = {
 	"worst_10000": util.join_path(util.RESOURCE, "wordle", "cache_worst_10000.pkl")
 }
 CACHE = {
-	"index": util.FileIO.read(PATH["index"]) if os.path.exists(PATH["index"]) else None,
+	"index": util.read(PATH["index"]) if os.path.exists(PATH["index"]) else None,
+	"compose": util.read(PATH["compose"]) if os.path.exists(PATH["compose"]) else None,
 	"state": np.fromfile(PATH["state"], dtype=np.uint8) if os.path.exists(PATH["state"]) else None,
-	"worst_00000": util.FileIO.read(PATH["worst_00000"]) if os.path.exists(PATH["worst_00000"]) else None,
-	"worst_00001": util.FileIO.read(PATH["worst_00001"]) if os.path.exists(PATH["worst_00001"]) else None,
-	"worst_00010": util.FileIO.read(PATH["worst_00010"]) if os.path.exists(PATH["worst_00010"]) else None,
-	"worst_00100": util.FileIO.read(PATH["worst_00100"]) if os.path.exists(PATH["worst_00100"]) else None,
-	"worst_01000": util.FileIO.read(PATH["worst_01000"]) if os.path.exists(PATH["worst_01000"]) else None,
-	"worst_10000": util.FileIO.read(PATH["worst_10000"]) if os.path.exists(PATH["worst_10000"]) else None
+	"worst_00000": util.read(PATH["worst_00000"]) if os.path.exists(PATH["worst_00000"]) else None,
+	"worst_00001": util.read(PATH["worst_00001"]) if os.path.exists(PATH["worst_00001"]) else None,
+	"worst_00010": util.read(PATH["worst_00010"]) if os.path.exists(PATH["worst_00010"]) else None,
+	"worst_00100": util.read(PATH["worst_00100"]) if os.path.exists(PATH["worst_00100"]) else None,
+	"worst_01000": util.read(PATH["worst_01000"]) if os.path.exists(PATH["worst_01000"]) else None,
+	"worst_10000": util.read(PATH["worst_10000"]) if os.path.exists(PATH["worst_10000"]) else None
 }
-
-ALLOWED_WORDS = tuple(util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "allowed_words.txt")).splitlines())
-POSSIBLE_WORDS = tuple(util.FileIO.read(util.join_path(util.RESOURCE, "wordle", "possible_words.txt")).splitlines())
-
-TOTALITY = len(ALLOWED_WORDS)
-TERNARY = tuple("".join(map(str, t)) for t in product(range(3), repeat=5))
-KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in ascii_lowercase}
-
-DPR = util.screen_info()["dpr"]
-PIXMAP_SIZE = 52
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	guess = state = answer = inning = hint = candidate = None
-	alphabet, show_hint = set(), False
+	KEY = {getattr(Qt.Key, f"Key_{key.upper()}"): key for key in ascii_lowercase}
+	TERNARY = tuple("".join(map(str, t)) for t in product(range(3), repeat=5))
+	DPR = util.screen()["dpr"]
+	FONT = {
+		12: QFont("nyt-franklin", 12, QFont.Weight.Bold),
+		16: QFont("nyt-franklin", 16, QFont.Weight.Bold),
+		21: QFont("nyt-franklin", 16, QFont.Weight.Bold)
+	}
+	IMG = {
+		"state": {s: {c: util.image(f"../wordle/{s}_{c}") for c in ascii_lowercase} for s in "012"},
+		"hint": {c: util.image(f"../wordle/hint_{c}") for c in ascii_lowercase},
+		"hit": {c: util.image(f"../wordle/hit_{c}") for c in ascii_lowercase},
+		"text": {c: util.image(f"../wordle/text_{c}") for c in ascii_lowercase},
+		"nontext": util.image(f"../wordle/nontext")
+	}
 
+	QSS = (
+		"QPushButton {color: %s; background-color: %s; border-radius: 5px}"
+		"QPushButton:hover {background-color: %s}"
+		"QPushButton:pressed {background-color: %s}"
+	)
+	BUTTON = {
+		None: QSS % ("black", "rgb(211,214,218)", "rgb(181,184,188)", "rgb(151,154,158)"),
+		"0": QSS % ("white", "rgb(120,124,126)", "rgb(90,94,96)", "rgb(60,64,66)"),
+		"1": QSS % ("white", "rgb(198,180,86)", "rgb(168,150,56)", "rgb(138,120,26)"),
+		"2": QSS % ("white", "rgb(112,169,97)", "rgb(82,139,67)", "rgb(52,109,37)")
+	}
+	
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../wordle/logo"))
 
-		self.timer = QTimer()
-		self.timer.setInterval(30)
-		util.cast(self.timer).timeout.connect(lambda: MyDisplayer.display_animate(self))
-
-		self.LABEL = [[getattr(self, f"label_{i}{j}") for j in range(5)] for i in range(6)]
-		for label in chain.from_iterable(self.LABEL):
-			label.setFont(QFont("nyt-franklin", 21, QFont.Weight.Bold))
-			label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+		self.labels = {(i, j): getattr(self, f"label_{i}{j}") for i, j in product(range(6), range(5))}
+		for label in self.labels.values():
+			label.setFont(self.FONT[12])
 			label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-		self.BUTTON = {key: getattr(self, f"pushButton_{key}") for key in ascii_lowercase}
-		for key, button in self.BUTTON.items():
-			button.setFont(QFont("nyt-franklin", 16, QFont.Weight.Bold))
+		self.buttons = {key: getattr(self, f"pushButton_{key}") for key in ascii_lowercase}
+		for key, button in self.buttons.items():
 			button.setText(key.upper())
-			util.button(button, partial(self.send_key, key=key))
+			button.setFont(self.FONT[16])
+			util.button(button, partial(self.act, key=key))
 
 		self.pushButton_enter.setText("ENTER")
-		self.pushButton_enter.setFont(QFont("nyt-franklin", 12, QFont.Weight.Bold))
-		self.pushButton_enter.setStyleSheet(QSS_BUTTON[None])
+		self.pushButton_enter.setFont(self.FONT[12])
+		self.pushButton_enter.setStyleSheet(self.BUTTON[None])
 
 		self.pushButton_delete.setText("⌫")
-		self.pushButton_delete.setFont(QFont("nyt-franklin", 16, QFont.Weight.Bold))
-		self.pushButton_delete.setStyleSheet(QSS_BUTTON[None])
+		self.pushButton_delete.setFont(self.FONT[16])
+		self.pushButton_delete.setStyleSheet(self.BUTTON[None])
 
-		util.button(self.pushButton_enter, lambda: self.send_key("enter"))
-		util.button(self.pushButton_delete, lambda: self.send_key("delete"))
-		util.button(self.toolButton_restart, self.restart, "../wordle/restart", tip="新游戏")
+		util.button(self.pushButton_enter, lambda: self.act("enter"))
+		util.button(self.pushButton_delete, lambda: self.act("delete"))
+		util.button(self.toolButton_restart, self.restart, "../wordle/restart", tip="新游戏", ico_size=40)
 		util.button(self.toolButton_hinting, self.hinting, "../wordle/nonhint", tip="提示", ico_size=32)
+		
+		self.guess = self.answer = self.inning = self.hint = self.candidate = None
+		self.alphabet, self.show_hint = set(), False
+		self.timer = util.timer(30, self.timeout)
 		self.restart()
 
 	def restart(self):
 		if self.timer.isActive():
 			self.timer.stop()
 
-		self.guess, self.state = "", None
-		self.answer, self.inning = random.choice(POSSIBLE_WORDS), 0
-		self.alphabet.clear()
+		self.guess, self.answer, self.inning = "", random.choice(POSSIBLE_WORDS), 0
 		self.hint, self.candidate = None, ALLOWED_WORDS
+		self.alphabet.clear()
 
-		for labels in self.LABEL:
-			MyDisplayer.display_clear(labels)
-		for button in self.BUTTON.values():
-			button.setStyleSheet(QSS_BUTTON[None])
+		for i, j in product(range(6), range(5)):
+			self.display(i, j, self.IMG["nontext"])
+		for button in self.buttons.values():
+			button.setStyleSheet(self.BUTTON[None])
 		self.label_message.clear()
 
 	def hinting(self):
@@ -129,20 +123,28 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.show_hint = not self.show_hint
 		self.toolButton_hinting.setIcon(util.icon("../wordle/hint" if self.show_hint else "../wordle/nonhint"))
 
-		if not self.label_message.text().startswith("You"):
-			MyDisplayer.display_clear(self.LABEL[self.inning])
-			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.inning], self.state is not None)
-			MyDisplayer.display_hint(self, self.LABEL[self.inning])
+		if self.label_message.text().startswith("You"):
+			return
+		if not self.hint:
+			return
 
-	def keyPressEvent(self, a0):
-		if a0.key() == Qt.Key.Key_Return:
-			self.send_key("enter")
-		elif a0.key() == Qt.Key.Key_Backspace:
-			self.send_key("delete")
-		elif a0.key() in KEY:
-			self.send_key(KEY[a0.key()])
+		for i, h in enumerate(self.hint):
+			if i >= len(self.guess):
+				if self.show_hint:
+					img = self.IMG["hit" if len(self.candidate) == 1 else "hint"][h]
+				else:
+					img = self.IMG["nontext"]
+				self.display(self.inning, i, img)
 
-	def send_key(self, key):
+	def keyPressEvent(self, event):
+		if event.key() == Qt.Key.Key_Return:
+			return self.act("enter")
+		if event.key() == Qt.Key.Key_Backspace:
+			return self.act("delete")
+		if event.key() in MyCore.KEY:
+			return self.act(MyCore.KEY[event.key()])
+
+	def act(self, key):
 		if self.timer.isActive():
 			return
 		if self.label_message.text().startswith("You"):
@@ -150,135 +152,82 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.label_message.clear()
 
 		if key == "enter":
-			self.__enter()
+			if len(self.guess) < 5:
+				return self.label_message.setText("Not enough letters")
+			if self.guess not in ALLOWED_WORDS:
+				return self.label_message.setText("Word not found")
+
+			state = MyComputation.to_state(self.guess, self.answer)
+			state_ternary = self.TERNARY[state]
+			self.candidate = MyComputation.to_candidate(self.guess, state, self.candidate)
+			if self.inning > 0 and f"worst_{state_ternary}" in CACHE:
+				self.hint = CACHE[f"worst_{state_ternary}"][self.guess]
+			else:
+				self.hint = EntropyAlgorithm.solve(self.candidate)
+
+			self.timer.frame = 0
+			self.timer.state = state_ternary
+			self.timer.previous = tuple(QPixmap(self.IMG["text"][g]) for i, g in enumerate(self.guess))
+			self.timer.subsequent = tuple(QPixmap(self.IMG["state"][state_ternary[i]][g]) for i, g in enumerate(self.guess))
+			self.timer.start()
 		elif key == "delete":
-			self.__delete()
+			if len(self.guess) > 0:
+				self.guess = self.guess[:-1]
+				if self.show_hint and self.hint:
+					img = self.IMG["hit" if len(self.candidate) == 1 else "hint"][tuple(self.hint)[len(self.guess)]]
+				else:
+					img = self.IMG["nontext"]
+				self.display(self.inning, len(self.guess), img)
 		else:
-			self.__letter(key)
+			if len(self.guess) < 5:
+				self.guess += key
+				self.display(self.inning, len(self.guess) - 1, self.IMG["text"][key])
 
-	def __enter(self):
-		if len(self.guess) < 5:
-			return self.label_message.setText("Not enough letters")
-		if self.guess not in ALLOWED_WORDS:
-			return self.label_message.setText("Word not found")
+	def display(self, x, y, img):
+		pixmap = QPixmap(img)
+		pixmap.setDevicePixelRatio(self.DPR)
+		self.labels[x, y].setPixmap(pixmap)
 
-		self.state = MyComputation.to_state(self.guess, self.answer)
-		self.candidate = MyComputation.to_candidate(self.guess, self.state, self.candidate)
-		if not self.inning and CACHE.get(f"worst_{TERNARY[self.state]}", None):
-			self.hint = CACHE[f"worst_{TERNARY[self.state]}"][self.guess]
-		else:
-			self.hint = EntropyAlgorithm.infer(self.candidate)
-
-		self.timer.frame = 0
-		self.timer.inning = self.inning
-		self.timer.previous = MyDisplayer.display_render(self.LABEL[self.inning])
-		self.timer.subsequent = MyDisplayer.display_render(MyDisplayer.display_skeleton(self.guess, self.state))
-		self.timer.start()
-
-	def __delete(self):
-		self.guess = self.guess[:-1]
-		MyDisplayer.display_clear(self.LABEL[self.inning])
-		MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.inning], False)
-		MyDisplayer.display_hint(self, self.LABEL[self.inning])
-
-	def __letter(self, key):
-		if len(self.guess) < 5:
-			self.guess += key
-			MyDisplayer.display_clear(self.LABEL[self.inning])
-			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.inning], False)
-			MyDisplayer.display_hint(self, self.LABEL[self.inning])
-
-
-class MyDisplayer:
-	@staticmethod
-	def display_clear(labels):
-		for i, label in enumerate(labels):
-			label.clear()
-			label.setStyleSheet(QSS_LABEL["nontext"])
-
-	@staticmethod
-	def display_label(guess, state, labels, stateful):
-		for i in range(len(guess)):
-			qss = QSS_LABEL[TERNARY[state][i]] if stateful else QSS_LABEL["text"]
-			labels[i].setText(guess[i].upper())
-			labels[i].setStyleSheet(qss)
-
-	@staticmethod
-	def display_hint(self, labels):
-		if not self.show_hint:
-			return
-		if not self.hint:
-			return
-		if self.guess == self.answer:
-			return
-
-		qss = QSS_LABEL["hit" if len(self.candidate) == 1 else "hint"]
-		for i, label in enumerate(labels):
-			if self.state is not None or i >= len(self.guess):
-				label.setText(self.hint[i].upper())
-				label.setStyleSheet(qss)
-
-	@staticmethod
-	def display_button(self):
-		state = TERNARY[self.state]
-		for s, (i, g) in product("02", enumerate(self.guess)):
-			if state[i] == s:
-				self.BUTTON[g].setStyleSheet(QSS_BUTTON[s])
-				self.alphabet.add(g)
-		for i, g in enumerate(self.guess):
-			if state[i] == "1" and g not in self.alphabet:
-				self.BUTTON[g].setStyleSheet(QSS_BUTTON[state[i]])
-
-	@staticmethod
-	def display_skeleton(guess, state):
-		labels = [QLabel() for _ in range(5)]
-		for i, label in enumerate(labels):
-			label.setFixedSize(PIXMAP_SIZE, PIXMAP_SIZE)
-			label.setFont(QFont("nyt-franklin", 21, QFont.Weight.Bold))
-			label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-			label.setText(guess[i].upper())
-			label.setStyleSheet(QSS_LABEL[TERNARY[state][i]])
-		return labels
-
-	@staticmethod
-	def display_render(labels):
-		pixmaps = [QPixmap(int(DPR * PIXMAP_SIZE), int(DPR * PIXMAP_SIZE)) for _ in range(len(labels))]
-		for i, label in enumerate(labels):
-			pixmaps[i].setDevicePixelRatio(DPR)
-			with QPainter(pixmaps[i]) as painter:
-				label.render(painter)
-		return pixmaps
-
-	@staticmethod
-	def display_animate(self):
+	def timeout(self):
 		if self.timer.frame >= 50:
 			self.timer.stop()
-			MyDisplayer.display_label(self.guess, self.state, self.LABEL[self.timer.inning], True)
-			MyDisplayer.display_hint(self, self.LABEL[self.timer.inning + 1]) if self.timer.inning <= 4 else None
-			MyDisplayer.display_button(self)
+			for i, g in enumerate(self.guess):
+				self.display(self.inning, i, self.IMG["state"][self.timer.state[i]][g])
+			if self.show_hint and self.hint and self.guess != self.answer:
+				for i, h in enumerate(self.hint):
+					self.display(self.inning + 1, i, self.IMG["hit" if len(self.candidate) == 1 else "hint"][h])
+
+			for s, (i, g) in product("02", enumerate(self.guess)):
+				if self.timer.state[i] == s:
+					self.buttons[g].setStyleSheet(self.BUTTON[s])
+					self.alphabet.add(g)
+			for i, g in enumerate(self.guess):
+				if self.timer.state[i] == "1" and g not in self.alphabet:
+					self.buttons[g].setStyleSheet(self.BUTTON[self.timer.state[i]])
 
 			if self.guess == self.answer:
 				self.label_message.setText("You win")
 			elif self.inning >= 5:
 				self.label_message.setText("You lose! The answer is " + self.answer.upper())
 			else:
-				self.guess, self.state, self.inning = "", None, self.inning + 1
+				self.guess = ""
+				self.inning += 1
 			return
 
-		label = self.LABEL[self.timer.inning][self.timer.frame // 10]
 		pixmap = (self.timer.previous if self.timer.frame % 10 < 5 else self.timer.subsequent)[self.timer.frame // 10]
 		ratio = abs(1 - (self.timer.frame + 1) % 10 / 5)
-
-		label.setStyleSheet(None)
-		label.setPixmap(pixmap.scaled(pixmap.width(), int(pixmap.height() * ratio)))
+		img = pixmap.scaled(pixmap.width(), round(pixmap.height() * ratio)).toImage()
+		self.display(self.inning, self.timer.frame // 10, img)
 		self.timer.frame += 1
 
 
 class MyComputation:
+	TOTALITY = len(ALLOWED_WORDS)
+
 	@staticmethod
 	def to_state(guess, answer):
 		index_guess, index_answer = CACHE["index"][guess], CACHE["index"][answer]
-		return int(CACHE["state"][index_guess * TOTALITY + index_answer])
+		return int(CACHE["state"][index_guess * MyComputation.TOTALITY + index_answer])
 
 	@staticmethod
 	def to_candidate(guess, state, candidate):
@@ -287,14 +236,13 @@ class MyComputation:
 
 class EntropyAlgorithm:
 	@staticmethod
-	def infer(candidate):
-		if not candidate:
-			return None
-		n, nlog = len(candidate), math.log2(len(candidate))
-		return max(candidate, key=lambda guess: EntropyAlgorithm.to_entropy(guess, candidate, n, nlog))
+	def solve(candidate):
+		if candidate:
+			n, nlog = len(candidate), math.log2(len(candidate))
+			return max(candidate, key=lambda guess: EntropyAlgorithm.entropy(guess, candidate, n, nlog))
 
 	@staticmethod
-	def to_entropy(guess, candidate, n, nlog):
+	def entropy(guess, candidate, n, nlog):
 		states = [MyComputation.to_state(guess, answer) for answer in candidate]
 		counts = np.bincount(np.array(states))
 		counts = counts[counts != 0]
