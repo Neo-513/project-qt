@@ -12,7 +12,7 @@ def resource_tile():
 		__tile(QColor(112, 169, 97), QColor(112, 169, 97), Qt.GlobalColor.white, text, f"2_{text}")
 		__tile(QColor(211, 214, 218), Qt.GlobalColor.white, QColor(181, 184, 188), text, f"hint_{text}")
 		__tile(QColor(200, 0, 0), Qt.GlobalColor.white, QColor(200, 0, 0), text, f"hit_{text}")
-		__tile(QColor(135, 138, 140), Qt.GlobalColor.white, Qt.GlobalColor.black, text, f"text_{text}")
+		__tile(Qt.GlobalColor.black, Qt.GlobalColor.white, Qt.GlobalColor.black, text, f"text_{text}")
 	__tile(QColor(211, 214, 218), Qt.GlobalColor.white, Qt.GlobalColor.black, "", f"nontext")
 	application.quit()
 
