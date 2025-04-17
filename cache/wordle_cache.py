@@ -45,7 +45,7 @@ def compute_worst(worst):
 def __compute_worst(args):
 	guess, state = args
 	candidate = MyComputation.to_candidate(guess, state, ALLOWED_WORDS)
-	best_guess = EntropyAlgorithm.infer(candidate)
+	best_guess = EntropyAlgorithm.solve(candidate)
 	print(guess, len(candidate))
 	return guess, best_guess
 
