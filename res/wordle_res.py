@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication
 from string import ascii_lowercase
 
@@ -19,16 +19,14 @@ def resource_tile():
 
 
 def __tile(border_color, background_color, color, text, name, dpr):
-	sizes = {"block": round(dpr * 52), "gap": round(dpr * 2), "groove": round(dpr * 48), "font": round(dpr * 21)}
+	sizes = {"font": round(dpr * 21), "border": round(dpr * 4.5), "block": round(dpr * 52)}
 	pixmap = QPixmap(sizes["block"], sizes["block"])
 	pixmap.fill(background_color)
 	with QPainter(pixmap) as painter:
 		painter.setFont(QFont("nyt-franklin", sizes["font"], QFont.Weight.Bold))
-		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(border_color)
-		painter.drawRect(0, 0, sizes["block"], sizes["block"])
+		painter.setPen(QPen(border_color, sizes["border"]))
 		painter.setBrush(background_color)
-		painter.drawRect(sizes["gap"], sizes["gap"], sizes["groove"], sizes["groove"])
+		painter.drawRect(0, 0, sizes["block"], sizes["block"])
 		painter.setPen(color)
 		painter.drawText(0, 0, sizes["block"], sizes["block"], Qt.AlignmentFlag.AlignCenter, text.upper())
 	pixmap.save(f"{name}.png")
