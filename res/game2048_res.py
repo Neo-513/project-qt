@@ -9,10 +9,8 @@ def resource_background():
 	pixmap = QPixmap(475, 475)
 	pixmap.fill(QColor(187, 173, 160))
 	with QPainter(pixmap) as painter:
-		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(QColor(205, 193, 180))
 		for i, j in product(range(4), repeat=2):
-			painter.drawRect(j * 115 + 15, i * 115 + 15, 100, 100)
+			painter.fillRect(j * 115 + 15, i * 115 + 15, 100, 100, QColor(205, 193, 180))
 	pixmap.save("background.png")
 	application.quit()
 
@@ -29,10 +27,8 @@ def resource_tile():
 		pixmap.fill(colors[i])
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("", 40, QFont.Weight.Bold))
-			painter.setPen(Qt.PenStyle.NoPen)
-			painter.setBrush(colors[i])
-			painter.drawRect(0, 0, 100, 100)
 			painter.setPen(QColor(118, 110, 101))
+			painter.fillRect(0, 0, 100, 100, colors[i])
 			painter.drawText(0, 0, 100, 100, Qt.AlignmentFlag.AlignCenter, str(1 << i).rstrip("1"))
 		pixmap.save(f"tile{i}.png")
 	application.quit()
