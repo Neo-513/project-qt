@@ -22,8 +22,8 @@ def resource_tile():
 		QColor(237, 204, 97), QColor(228, 192, 42), QColor(226, 186, 19), QColor(236, 196, 0)
 	)
 	application = QApplication([])
-	pixmap = QPixmap(100, 100)
 	for i in range(12):
+		pixmap = QPixmap(100, 100)
 		pixmap.fill(colors[i])
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("", 40, QFont.Weight.Bold))
