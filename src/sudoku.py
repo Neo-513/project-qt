@@ -1,6 +1,6 @@
 from sudoku_ui import Ui_MainWindow
-from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from collections import defaultdict
 from itertools import product
@@ -14,11 +14,12 @@ CACHE = {"graph": np.fromfile(PATH["graph"], dtype=np.uint8).reshape(729, 324) i
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	SIZE = {"block": 60, "gap": 5}
-	OFFSET = np.array((1, 1, -2, -2)) * SIZE["gap"]
-	KEY = {
-		"tile": {getattr(Qt.Key, f"Key_{i}"): i for i in range(1, 10)},
-		"direction": {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0), Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}
+	SIZE = 60
+	KEY = {getattr(Qt.Key, f"Key_{i + 1}"): i + 1 for i in range(9)}
+	IMG = {
+		"black": tuple(util.image(f"../sudoku/black{i}") for i in range(9)),
+		"gray": tuple(util.image(f"../sudoku/black{i}") for i in range(9)),
+		"selection": util.image(f"../sudoku/selection")
 	}
 
 	def __init__(self):
@@ -26,82 +27,72 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
-		self.skeleton = util.pixmap(image=("sudoku", "background.png"))
-		self.label.setPixmap(self.skeleton.copy())
-		self.label.mousePressEvent = self.mouse_press
-		self.label.wheelEvent = self.wheel_scroll
+		self.label_background = util.mask(self.label_canvas.minimumSize(), (9, 9), self.centralwidget)
+		self.label_background.setPixmap(util.pixmap("../sudoku/background"))
+		self.label_cover = util.mask(self.label_canvas.minimumSize(), (9, 9), self.centralwidget, pointer=True)
+		self.label_cover.mousePressEvent = self.press_mouse
+		util.pixmap(self.label_cover, color=Qt.GlobalColor.transparent)
+		util.pixmap(self.label_canvas, color=Qt.GlobalColor.transparent)
 
 		self.board = np.zeros((9, 9), dtype=np.int8)
-		self.selection = self.previous = np.array((0, 0))
-		self.__select()
+		self.selection = 0, 0
+		self.select()
 
-	def mouse_press(self, event):
-		pos = np.array((event.pos().y(), event.pos().x())) // self.SIZE["block"]
-		self.previous = self.selection.copy()
-		self.selection = np.clip(pos, 0, 8)
-		self.__select()
+	def press_mouse(self, event):
+		pos = event.pos().y() // self.SIZE, event.pos().x() // self.SIZE
+		self.selection = tuple(np.clip(pos, 0, 8))
+		self.select()
 
-	def wheel_scroll(self, event):
-		self.board[tuple(self.selection)] += 1 if event.angleDelta().y() > 0 else -1
-		self.board[tuple(self.selection)] = np.clip(self.board[tuple(self.selection)], 0, 9)
-		self.__display()
+	def wheelEvent(self, event):
+		self.board[self.selection] += 1 if event.angleDelta().y() > 0 else -1
+		self.board[self.selection] = np.clip(self.board[self.selection], 0, 9)
+		self.display(self.selection, "black", self.board[self.selection])
 
 	def keyPressEvent(self, event):
+		if event.key() in self.KEY:
+			self.board[self.selection] = self.KEY[event.key()]
+			self.display(self.selection, "black", self.board[self.selection])
+			return
+		if event.key() == Qt.Key.Key_Backspace:
+			self.board[self.selection] = 0
+			self.display(self.selection, "black", self.board[self.selection])
+			return
+		if event.key() == Qt.Key.Key_Delete:
+			self.board.fill(0)
+			pixmap = self.label_canvas.pixmap()
+			pixmap.fill(Qt.GlobalColor.transparent)
+			self.label_canvas.setPixmap(pixmap)
+			return
 		if event.key() == Qt.Key.Key_Return:
 			result = DancingLinksAlgorithm.solve(self.board)
 			if isinstance(result, str):
 				util.dialog(result, "error")
 			else:
-				self.__display(result=result)
-			return
-
-		if event.key() in self.KEY["tile"]:
-			self.board[tuple(self.selection)] = self.KEY["tile"][event.key()]
-		elif event.key() == Qt.Key.Key_Backspace:
-			self.board[tuple(self.selection)] = 0
-		elif event.key() in self.KEY["direction"]:
-			self.previous = self.selection.copy()
-			self.selection = np.clip(self.selection + self.KEY["direction"][event.key()], 0, 8)
-		elif event.key() == Qt.Key.Key_Delete:
-			self.board.fill(0)
-			self.label.setPixmap(self.skeleton.copy())
-		else:
-			return
-		self.__display()
-
-	def __select(self):
-		pixmap = self.label.pixmap()
-		with QPainter(pixmap) as painter:
-			self.__rect(painter, self.previous, QColor(243, 243, 243))
-			self.__rect(painter, self.selection, QColor(200, 0, 0))
-		self.label.setPixmap(pixmap)
-
-	def __display(self, result=None):
-		pixmap = self.label.pixmap()
-		with QPainter(pixmap) as painter:
-			painter.setFont(QFont("Arial", 24, QFont.Weight.Black))
-			painter.setPen(Qt.GlobalColor.transparent)
-			if result is None:
-				rect = np.array((*self.selection[::-1], 1, 1)) * self.SIZE["block"] + self.OFFSET * 2
-				painter.setBrush(QColor(243, 243, 243))
-				painter.drawRect(QRect(*rect))
-				painter.setBrush(Qt.GlobalColor.transparent)
-				self.__rect(painter, self.selection, Qt.GlobalColor.black, board=self.board)
-			else:
 				for pos in np.argwhere(self.board != 0):
-					self.__rect(painter, pos, Qt.GlobalColor.black, board=self.board)
+					self.display(pos, "black", self.board[tuple(pos)])
 				for pos in np.argwhere(self.board == 0):
-					self.__rect(painter, pos, Qt.GlobalColor.gray, board=result)
-		self.label.setPixmap(pixmap)
-		self.__select()
+					self.display(pos, "gray", result[tuple(pos)])
+			return
 
-	def __rect(self, painter, pos, color, board=None):
-		painter.setPen(QPen(color, 2))
-		rect = np.array((*pos[::-1], 1, 1)) * self.SIZE["block"]
-		if board is None:
-			painter.drawRect(QRect(*(rect + self.OFFSET)))
-		else:
-			painter.drawText(QRect(*rect), Qt.AlignmentFlag.AlignCenter, str(board[tuple(pos)]).strip("0"))
+	def display(self, pos, color, tile):
+		xy = pos[1] * self.SIZE, pos[0] * self.SIZE
+		zw = self.SIZE, self.SIZE
+
+		pixmap = self.label_canvas.pixmap()
+		with QPainter(pixmap) as painter:
+			painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+			painter.fillRect(*xy, *zw, Qt.GlobalColor.transparent)
+			if tile != 0:
+				painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+				painter.drawImage(*xy, self.IMG[color][tile - 1])
+		self.label_canvas.setPixmap(pixmap)
+
+	def select(self):
+		pixmap = self.label_cover.pixmap()
+		pixmap.fill(Qt.GlobalColor.transparent)
+		with QPainter(pixmap) as painter:
+			painter.drawImage(self.selection[1] * self.SIZE, self.selection[0] * self.SIZE, self.IMG["selection"])
+		self.label_cover.setPixmap(pixmap)
 
 
 class DancingLinksAlgorithm:
@@ -215,7 +206,7 @@ class DancingLinksAlgorithm:
 	@staticmethod
 	def solve(board):
 		if np.count_nonzero(board != 0) < 17:
-			return "已知数不可少于17个"
+			return f"已知数{np.count_nonzero(board != 0)}个不可少于17个"
 		for i, row in enumerate(board):
 			if any(np.bincount(row)[1:] > 1):
 				return f"第{i + 1}行中有重复项"
