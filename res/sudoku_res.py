@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication
 from itertools import product
 
@@ -23,12 +23,13 @@ def resource_background():
 def resource_tile():
 	application = QApplication([])
 	pixmap = QPixmap(60, 60)
-	for i in range(9):
+	for i, color in product(range(9), ("black", "gray")):
 		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("Arial", 24, QFont.Weight.Black))
+			painter.setPen(QColor(color))
 			painter.drawText(0, 0, 60, 60, Qt.AlignmentFlag.AlignCenter, f"{i + 1}")
-		pixmap.save(f"tile{i + 1}.png")
+		pixmap.save(f"{color}{i + 1}.png")
 	application.quit()
 
 
