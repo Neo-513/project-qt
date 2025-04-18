@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
+from PyQt6.QtGui import QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QApplication
 from itertools import product
 
@@ -7,7 +7,7 @@ from itertools import product
 def resource_background():
 	application = QApplication([])
 	pixmap = QPixmap(540, 540)
-	pixmap.fill(QColor(243, 243, 243))
+	pixmap.fill(Qt.GlobalColor.transparent)
 	with QPainter(pixmap) as painter:
 		painter.setPen(QPen(Qt.GlobalColor.gray, 1))
 		for pos in product(range(9), repeat=2):
