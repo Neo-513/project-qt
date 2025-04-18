@@ -45,6 +45,7 @@ def resource_selection():
 	pixmap.save(f"selection.png")
 	application.quit()
 
+
 if __name__ == "__main__":
 	# resource_background()
 	# resource_tile()
