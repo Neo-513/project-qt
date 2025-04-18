@@ -1,5 +1,6 @@
 from src.game2048 import *
 
+
 def compute_sequential():
 	__compute_moves(PATH["sequential"], slice(None, None, None))
 
@@ -49,21 +50,10 @@ def compute_merge():
 	util.write(PATH["merge"], cache)
 
 
-def compute_background():
-	application = QApplication([])
-	pixmap = util.pixmap(size=475, color=QColor(187, 173, 160))
-	with QPainter(pixmap) as painter:
-		for groove in MyDisplayer.GROOVE.values():
-			MyDisplayer.draw(painter, 0, groove)
-	pixmap.save("background.png")
-	application.quit()
-
-
 if __name__ == "__main__":
 	# compute_sequential()
 	# compute_reversed()
 	# compute_mono()
 	# compute_smooth()
 	# compute_merge()
-	# compute_background()
 	pass
