@@ -18,7 +18,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	KEY = {getattr(Qt.Key, f"Key_{i + 1}"): i + 1 for i in range(9)}
 	IMG = {
 		"black": tuple(util.image(f"../sudoku/black{i}") for i in range(9)),
-		"gray": tuple(util.image(f"../sudoku/black{i}") for i in range(9)),
+		"gray": tuple(util.image(f"../sudoku/gray{i}") for i in range(9)),
 		"selection": util.image(f"../sudoku/selection")
 	}
 
