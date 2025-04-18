@@ -38,11 +38,12 @@ def resource_selection():
 	pixmap = QPixmap(60, 60)
 	pixmap.fill(QColor(200, 0, 0, 50))
 	with QPainter(pixmap) as painter:
-		painter.setPen(QPen(QColor(200, 0, 0), 2))
-		painter.drawRect(0, 0, 60, 60)
+		painter.fillRect(0, 0, 2, 60, QColor(200, 0, 0))
+		painter.fillRect(0, 0, 60, 2, QColor(200, 0, 0))
+		painter.fillRect(58, 0, 2, 60, QColor(200, 0, 0))
+		painter.fillRect(0, 58, 60, 2, QColor(200, 0, 0))
 	pixmap.save(f"selection.png")
 	application.quit()
-
 
 if __name__ == "__main__":
 	# resource_background()
