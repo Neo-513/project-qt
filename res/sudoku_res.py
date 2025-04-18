@@ -22,8 +22,8 @@ def resource_background():
 
 def resource_tile():
 	application = QApplication([])
-	pixmap = QPixmap(60, 60)
 	for i, color in product(range(9), ("black", "gray")):
+		pixmap = QPixmap(60, 60)
 		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("Arial", 24, QFont.Weight.Black))
