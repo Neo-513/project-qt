@@ -28,12 +28,24 @@ def resource_tile():
 		with QPainter(pixmap) as painter:
 			painter.setFont(QFont("Arial", 24, QFont.Weight.Black))
 			painter.setPen(QColor(color))
-			painter.drawText(0, 0, 60, 60, Qt.AlignmentFlag.AlignCenter, f"{i + 1}")
-		pixmap.save(f"{color}{i + 1}.png")
+			painter.drawText(0, 0, 60, 60, Qt.AlignmentFlag.AlignCenter, str(i + 1))
+		pixmap.save(f"{color}{i}.png")
+	application.quit()
+
+
+def resource_selection():
+	application = QApplication([])
+	pixmap = QPixmap(60, 60)
+	pixmap.fill(QColor(200, 0, 0, 50))
+	with QPainter(pixmap) as painter:
+		painter.setPen(QPen(QColor(200, 0, 0), 2))
+		painter.drawRect(0, 0, 60, 60)
+	pixmap.save(f"selection.png")
 	application.quit()
 
 
 if __name__ == "__main__":
 	# resource_background()
 	# resource_tile()
+	# resource_selection()
 	pass
