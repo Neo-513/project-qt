@@ -27,9 +27,9 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.setupUi(self)
 		self.setWindowIcon(util.icon("../sudoku/logo"))
 
-		self.label_background = util.mask(self.label_canvas.minimumSize(), (9, 9), self.centralwidget)
+		self.label_background = util.mask(self.label_canvas, (9, 9))
 		self.label_background.setPixmap(util.pixmap("../sudoku/background"))
-		self.label_cover = util.mask(self.label_canvas.minimumSize(), (9, 9), self.centralwidget, pointer=True)
+		self.label_cover = util.mask(self.label_canvas, (9, 9), pointer=True)
 		self.label_cover.mousePressEvent = self.press_mouse
 		util.pixmap(self.label_cover, color=Qt.GlobalColor.transparent)
 		util.pixmap(self.label_canvas, color=Qt.GlobalColor.transparent)
