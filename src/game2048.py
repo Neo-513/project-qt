@@ -1,6 +1,6 @@
 from game2048_ui import Ui_MainWindow
-from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QColor, QFont, QPainter
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import lru_cache
 from itertools import product
@@ -37,11 +37,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 		util.button(self.pushButton, self.restart)
 		util.button(self.toolButton, self.botting, "../game2048/nonbotting", ico_size=32)
-		self.label.mousePressEvent = self.mouse_press
-		self.label.mouseReleaseEvent = self.mouse_release
+		self.label_background.setPixmap(util.pixmap("../game2048/background"))
+		self.label_canvas = util.mask(self.label_background, (9, 56))
+		self.label_canvas.mousePressEvent = self.press_mouse
+		self.label_canvas.mouseReleaseEvent = self.release_mouse
+		util.pixmap(self.label_canvas)
 
 		self.board = np.zeros((4, 4), dtype=np.int8)
-		self.skeleton = util.pixmap(label=self.label, image=("game2048", "background.png"))
 		self.timer1 = util.timer(15, self.timeout1)
 		self.timer2 = util.timer(160, self.timeout2)
 		self.mouse_pos = None
@@ -64,10 +66,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if event.key() in MyCore.KEY:
 			self.act(MyCore.KEY[event.key()])
 
-	def mouse_press(self, event):
+	def press_mouse(self, event):
 		self.mouse_pos = event.pos()
 
-	def mouse_release(self, event):
+	def release_mouse(self, event):
 		if self.timer1.isActive() or self.timer2.isActive():
 			return
 		if not self.mouse_pos:
@@ -100,13 +102,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 
 		offset = self.timer1.frame / 10
-		pixmap = self.skeleton.copy()
+		pixmap = self.label_canvas.pixmap()
+		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
-			painter.setFont(MyDisplayer.FONT)
 			for (sx, sy), (ex, ey), tile in self.timer1.trails:
-				groove = int(sx + (ex - sx) * offset), int(sy + (ey - sy) * offset)
-				MyDisplayer.draw(painter, tile, groove)
-		self.label.setPixmap(pixmap)
+				pos = round(sx + (ex - sx) * offset), round(sy + (ey - sy) * offset)
+				painter.drawImage(*pos, MyDisplayer.TILE[tile])
+		self.label_canvas.setPixmap(pixmap)
 
 	def timeout2(self):
 		if MyMatrixer.win(self.board) or MyMatrixer.lose(self.board):
@@ -125,8 +127,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			util.dialog("You win", "success")
 			return self.restart()
+
 		if not np.array_equal(self.board, previous):
 			MyMatrixer.add(self.board)
+
 		if MyMatrixer.lose(self.board):
 			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			util.dialog("You lose", "error")
@@ -134,35 +138,25 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 
 class MyDisplayer:
-	TILE = tuple(str(1 << i).rstrip("1") for i in range(12))
-	GROOVE = {(i, j): (j * 115 + 15, i * 115 + 15) for i, j in product(range(4), repeat=2)}
-	FONT = QFont(QFont().family(), 40, QFont.Weight.Bold)
-	COLOR = [
-		(205, 193, 180), (238, 228, 218), (237, 224, 200), (242, 177, 121), (245, 149, 99), (246, 124, 95),
-		(246, 94, 59), (237, 207, 114), (237, 204, 97), (228, 192, 42), (226, 186, 19), (236, 196, 0)
-	]
+	TILE = tuple(util.image(f"../game2048/tile{i}") for i in range(12))
+	GROOVE = tuple(tuple((j * 115 + 15, i * 115 + 15) for j in range(4)) for i in range(4))
 	TRANS = {
-		"L": lambda x, y: MyDisplayer.GROOVE[x, y], "R": lambda x, y: MyDisplayer.GROOVE[3 - x, 3 - y],
-		"U": lambda x, y: MyDisplayer.GROOVE[y, 3 - x], "D": lambda x, y: MyDisplayer.GROOVE[3 - y, x]
+		"L": lambda x, y: MyDisplayer.GROOVE[x][y],
+		"R": lambda x, y: MyDisplayer.GROOVE[3 - x][3 - y],
+		"U": lambda x, y: MyDisplayer.GROOVE[y][3 - x],
+		"D": lambda x, y: MyDisplayer.GROOVE[3 - y][x]
 	}
 
 	@staticmethod
 	def display(self):
-		pixmap = self.skeleton.copy()
+		pixmap = self.label_canvas.pixmap()
+		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
-			painter.setFont(MyDisplayer.FONT)
-			for pos, groove in MyDisplayer.GROOVE.items():
-				MyDisplayer.draw(painter, self.board[pos], groove)
-		self.label.setPixmap(pixmap)
-
-	@staticmethod
-	def draw(painter, tile, groove):
-		rect = QRect(*groove, 100, 100)
-		painter.setPen(Qt.PenStyle.NoPen)
-		painter.setBrush(QColor(*MyDisplayer.COLOR[tile]))
-		painter.drawRect(rect)
-		painter.setPen(QColor(118, 110, 101))
-		painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, MyDisplayer.TILE[tile])
+			for i, groove in enumerate(MyDisplayer.GROOVE):
+				for j, pos in enumerate(groove):
+					if self.board[i, j] != 0:
+						painter.drawImage(*pos, MyDisplayer.TILE[self.board[i, j]])
+		self.label_canvas.setPixmap(pixmap)
 
 	@staticmethod
 	def track(previous, subsequent, movement):
