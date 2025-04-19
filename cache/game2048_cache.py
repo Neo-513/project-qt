@@ -1,15 +1,17 @@
-from src.game2048 import *
+from itertools import product
+import numpy as np
+import pickle
 
 
 def compute_sequential():
-	__compute_moves(PATH["sequential"], slice(None, None, None))
+	__compute_moves("cache_sequential.pkl", slice(None, None, None))
 
 
 def compute_reversed():
-	__compute_moves(PATH["reversed"], slice(None, None, -1))
+	__compute_moves("cache_reversed.pkl", slice(None, None, -1))
 
 
-def __compute_moves(path, piece):
+def __compute_moves(file_path, piece):
 	cache = {}
 	for tiles in product(range(12), repeat=4):
 		t, merged = [], False
@@ -22,8 +24,9 @@ def __compute_moves(path, piece):
 			else:
 				t.append(tile)
 				merged = False
-		cache[tiles[piece].tobytes()] = np.array(t + [0] * (4 - len(t)), dtype=np.int8)[piece]
-	util.write(path, cache)
+		cache[bytes(tiles[piece])] = np.array(t + [0] * (4 - len(t)), dtype=np.int8)[piece]
+	with open(file_path, mode="wb") as file:
+		pickle.dump(cache, file)
 
 
 def compute_mono():
@@ -31,14 +34,16 @@ def compute_mono():
 	for tiles in product(range(12), repeat=4):
 		t = np.diff(tiles)
 		cache[bytes(tiles)] = np.sum(tiles) if np.all(t >= 0) or np.all(t <= 0) else 0
-	util.write(PATH["mono"], cache)
+	with open("cache_mono.pkl", mode="wb") as file:
+		pickle.dump(cache, file)
 
 
 def compute_smooth():
 	cache = {}
 	for tiles in product(range(12), repeat=4):
 		cache[bytes(tiles)] = np.sum(np.abs(np.diff(tiles)))
-	util.write(PATH["smooth"], cache)
+	with open("cache_smooth.pkl", mode="wb") as file:
+		pickle.dump(cache, file)
 
 
 def compute_merge():
@@ -47,7 +52,8 @@ def compute_merge():
 		t = np.array(tiles)
 		t = t[t != 0]
 		cache[bytes(tiles)] = np.sum(t[:-1][np.diff(t) == 0])
-	util.write(PATH["merge"], cache)
+	with open("cache_merge.pkl", mode="wb") as file:
+		pickle.dump(cache, file)
 
 
 if __name__ == "__main__":
