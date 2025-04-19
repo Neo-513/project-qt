@@ -8,9 +8,7 @@ def compute_surrounding():
 	offset = tuple(pos for pos in product(range(-1, 2), repeat=2) if pos != (0, 0))
 	for d, (r, c) in difficulty.items():
 		for x, y in product(range(r), range(c)):
-			surrounding = tuple((x + i, y + j) for i, j in offset if 0 <= (x + i) < r and 0 <= (y + j) < c)
-			if surrounding:
-				cache[d][x, y] = surrounding
+			cache[d][x, y] = tuple((x + i, y + j) for i, j in offset if 0 <= (x + i) < r and 0 <= (y + j) < c)
 	with open("surrounding.pkl", mode="wb") as file:
 		pickle.dump(cache, file)
 
