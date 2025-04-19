@@ -31,9 +31,6 @@
         <property name="focusPolicy">
          <enum>Qt::FocusPolicy::NoFocus</enum>
         </property>
-        <property name="styleSheet">
-         <string notr="true">border: none</string>
-        </property>
        </widget>
       </item>
       <item>
@@ -74,7 +71,7 @@ QPushButton {color: white; font-weight: bold; font-size: 15px}</string>
      </layout>
     </item>
     <item>
-     <widget class="QLabel" name="label">
+     <widget class="QLabel" name="label_background">
       <property name="minimumSize">
        <size>
         <width>475</width>
