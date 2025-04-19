@@ -1,5 +1,5 @@
 from minesweeper_ui import Ui_MainWindow
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QSizePolicy
 from itertools import product
@@ -21,12 +21,11 @@ COLOR = {
 	5: "rgb(122,004,006)", 6: "rgb(041,128,129)", 7: "rgb(000,000,000)", 8: "rgb(124,124,124)"
 }
 
-APP = QApplication([])
-SCREEN_SIZE = APP.primaryScreen().size().width(), APP.primaryScreen().size().height()
+SCREEN_SIZE = util.screen()["size"]
 BLOCK_SIZE = 35
 
 PATH_SURROUNDING = util.join_path(util.RESOURCE, "minesweeper", "surrounding.pkl")
-CACHE_SURROUNDING = util.FileIO.read(PATH_SURROUNDING)
+CACHE_SURROUNDING = util.read(PATH_SURROUNDING)
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
@@ -37,15 +36,13 @@ class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
-		self.setWindowIcon(util.icon("../minesweeper/minesweeper"))
+		self.setWindowIcon(util.icon("../minesweeper/logo"))
 
 		self.radioButton_easy.clicked.connect(self.switch)
 		self.radioButton_medium.clicked.connect(self.switch)
 		self.radioButton_hard.clicked.connect(self.switch)
 
-		self.timer = QTimer()
-		self.timer.setInterval(10)
-		util.cast(self.timer).timeout.connect(lambda: MyStatic.timeout(self))
+		self.timer = util.timer(10, lambda: MyStatic.timeout(self))
 
 		rc, cc, _ = DIFFICULTY["hard"]
 		for i, j in product(range(rc), range(cc)):
@@ -85,10 +82,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.amount_flagged = 0
 
 		self.timer.stop()
-		self.timer.setProperty("time", 0)
+		self.timer.time = 0
 
-		for i, j in product(range(self.row_count), range(self.col_count)):
-			widget = self.gridLayout.itemAtPosition(i, j).widget()
+		for pos in product(range(self.row_count), range(self.col_count)):
+			widget = self.gridLayout.itemAtPosition(*pos).widget()
 			widget.setText("")
 			widget.status_pressed = False
 			widget.status_flagged = False
@@ -172,11 +169,11 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.timer.stop()
 		self.amount_flagged = self.mine_count
 		MyStatic.message(self)
-		util.dialog("You won", "success") if win else util.dialog("You lose", "error")
+		util.dialog("You win", "success") if win else util.dialog("You lose", "error")
 		self.restart()
 
-	def leaveEvent(self, a0):
-		super().leaveEvent(a0)
+	def leaveEvent(self, event):
+		super().leaveEvent(event)
 		if self.amount_pressed and self.timer.isActive():
 			self.timer.stop()
 
@@ -188,7 +185,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 class MyStatic:
 	@staticmethod
 	def reset(x, y):
-		mine_poses = [(i, j) for i, j in product(range(my_core.row_count), range(my_core.col_count))]
+		mine_poses = [pos for pos in product(range(my_core.row_count), range(my_core.col_count))]
 		for i, j in product(range(-2, 3), repeat=2):
 			if (x + i, y + j) in CACHE_SURROUNDING[my_core.difficulty]:
 				mine_poses.remove((x + i, y + j))
@@ -203,13 +200,13 @@ class MyStatic:
 	@staticmethod
 	def message(self):
 		rest = self.mine_count - self.amount_flagged
-		cost = round(self.timer.property("time"))
+		cost = round(self.timer.time)
 		self.statusbar.showMessage(f"剩余: {rest:02}  用时: {cost:03}")
 
 	@staticmethod
 	def timeout(self):
-		self.timer.setProperty("time", self.timer.property("time") + self.timer.interval() / 1000)
-		if self.timer.property("time") >= 999:
+		self.timer.time += self.timer.interval() / 1000
+		if self.timer.time >= 999:
 			self.timer.stop()
 		MyStatic.message(self)
 
@@ -245,40 +242,6 @@ class MineBlock(QPushButton):
 		for pos in self.hint_pos:
 			my_core.gridLayout.itemAtPosition(pos[0], pos[1]).widget().setStyleSheet(QSS_UNEXPLORED)
 		self.hint_pos.clear()
-
-
-class MyPrecomputation:
-	@staticmethod
-	def compute_surrounding():
-		cache_surrounding = {"easy": {}, "medium": {}, "hard": {}}
-		offset = tuple((i, j) for i, j in product(range(-1, 2), repeat=2) if (i or j))
-
-		row_easy, col_easy = DIFFICULTY["easy"][0], DIFFICULTY["easy"][1]
-		row_medium, col_medium = DIFFICULTY["medium"][0], DIFFICULTY["medium"][1]
-		row_hard, col_hard = DIFFICULTY["hard"][0], DIFFICULTY["hard"][1]
-
-		for x, y in product(range(row_hard), range(col_hard)):
-			surrounding_easy = []
-			surrounding_medium = []
-			surrounding_hard = []
-
-			for (i, j) in offset:
-				pos = x + i, y + j
-				if (0 <= x < row_easy and 0 <= y < col_easy) and (0 <= pos[0] < row_easy and 0 <= pos[1] < col_easy):
-					surrounding_easy.append(pos)
-				if (0 <= x < row_medium and 0 <= y < col_medium) and (0 <= pos[0] < row_medium and 0 <= pos[1] < col_medium):
-					surrounding_medium.append(pos)
-				if (0 <= x < row_hard and 0 <= y < col_hard) and (0 <= pos[0] < row_hard and 0 <= pos[1] < col_hard):
-					surrounding_hard.append(pos)
-
-			if surrounding_easy:
-				cache_surrounding["easy"][x, y] = surrounding_easy
-			if surrounding_medium:
-				cache_surrounding["medium"][x, y] = surrounding_medium
-			if surrounding_hard:
-				cache_surrounding["hard"][x, y] = surrounding_hard
-
-		util.FileIO.write(PATH_SURROUNDING, cache_surrounding)
 
 
 if __name__ == "__main__":
