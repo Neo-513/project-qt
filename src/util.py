@@ -1,6 +1,6 @@
 from PyQt6.QtCore import pyqtSignal, QDir, QSize, QTimer, Qt, QUrl
-from PyQt6.QtGui import QAction, QDesktopServices, QImage, QIcon, QPixmap
-from PyQt6.QtWidgets import QApplication, QFileDialog, QLineEdit, QListWidget, QMenu, QMessageBox
+from PyQt6.QtGui import QAction, QCursor, QDesktopServices, QImage, QIcon, QPixmap
+from PyQt6.QtWidgets import QFileDialog, QLabel, QLineEdit, QListWidget, QMenu, QMessageBox, QToolButton
 from PyQt6.QtWidgets import QTreeWidget, QTreeWidgetItem
 import json
 import os
@@ -21,7 +21,11 @@ def join_path(*paths):
 
 
 def icon(path):
-	return QIcon(join_path(RESOURCE, "common", f"{path}.png"))
+	return QIcon(join_path(RESOURCE, "common", f"{path}.png")) if path is not None else QIcon()
+
+
+def image(path):
+	return QImage(join_path(RESOURCE, "common", f"{path}.png")) if path is not None else QImage()
 
 
 def timer(interval, func):
@@ -31,24 +35,33 @@ def timer(interval, func):
 	return t
 
 
-def pixmap(label=None, size=None, color=None, image=None):
-	if image:
-		if isinstance(image, tuple):
-			image = QImage(join_path(RESOURCE, *image))
-		pm = QPixmap().fromImage(image)
-	else:
-		if isinstance(size, QSize):
-			size = size.width(), size.height()
-		if isinstance(size, int):
-			size = (size,) * 2
-		pm = QPixmap(*tuple(size)) if size else label.pixmap()
-		pm.fill(color) if color else None
-	label.setPixmap(pm) if label else None
+def pixmap(label, color=None):
+	if isinstance(label, str):
+		return QPixmap(image(label))
+	pm = QPixmap(label.minimumSize())
+	pm.fill(color) if color else None
+	label.setPixmap(pm)
 	return pm
 
 
-def signal(func):
-	s = pyqtSignal()
+def mas0k(size, pos, parent, pointer=False):
+	label = QLabel(parent=parent)
+	label.setFixedSize(size)
+	label.setGeometry(*pos, label.width(), label.height())
+	label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) if pointer else None
+	return label
+
+
+def mask(face, offset, pointer=False):
+	label = QLabel(parent=face.parent())
+	label.setFixedSize(face.minimumSize())
+	label.setGeometry(*offset, label.width(), label.height())
+	label.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) if pointer else None
+	return label
+
+
+def signal(func, params=None):
+	s = pyqtSignal(*params) if params else pyqtSignal()
 	cast(s).connect(func)
 	return s
 
@@ -69,6 +82,7 @@ def button(push_button, func, ico=None, tip=None, ico_size=None):
 	push_button.setIcon(icon(ico)) if ico else None
 	push_button.setToolTip(tip) if tip else None
 	push_button.setIconSize(QSize(ico_size, ico_size)) if ico_size is not None else None
+	push_button.setStyleSheet("border: none") if isinstance(push_button, QToolButton) else None
 	push_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
 
@@ -97,16 +111,6 @@ def open_folder(folder_path):
 	if not os.path.exists(folder_path):
 		return
 	QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
-
-
-def screen_info():
-	app = QApplication([])
-	screen = app.primaryScreen()
-	app.quit()
-	return {
-		"size": (screen.size().width(), screen.size().height()),
-		"dpr": screen.devicePixelRatio()
-	}
 
 
 def read(file_path):
@@ -200,23 +204,23 @@ class Menu:
 	@staticmethod
 	def menu(widget, select=False, folder=False, func=None):
 		def _func(point):
-			widget.setProperty("menu", QMenu(widget))
+			widget.menu = QMenu(widget)
 			item = widget.itemAt(point)
 			if not item:
 				return
 			widget.setCurrentItem(item)
 
 			if select:
-				Menu.add(widget.property("menu"), "select_all", "全选", lambda: Menu.select_all(widget))
-				Menu.add(widget.property("menu"), "unselect_all", "取消全选", lambda: Menu.unselect_all(widget))
+				Menu.add(widget.menu, "select_all", "全选", lambda: Menu.select_all(widget))
+				Menu.add(widget.menu, "unselect_all", "取消全选", lambda: Menu.unselect_all(widget))
 			if folder:
 				if isinstance(widget, QTreeWidget) and widget.currentItem().toolTip(0):
-					Menu.add(widget.property("menu"), "export", "打开文件夹", lambda: open_folder(item.toolTip(0)))
+					Menu.add(widget.menu, "export", "打开文件夹", lambda: open_folder(item.toolTip(0)))
 				elif isinstance(widget, QListWidget) and widget.currentItem().toolTip():
-					Menu.add(widget.property("menu"), "export", "打开文件夹", lambda: open_folder(item.toolTip()))
+					Menu.add(widget.menu, "export", "打开文件夹", lambda: open_folder(item.toolTip()))
 
 			func(widget, point) if func else None
-			widget.property("menu").exec(widget.viewport().mapToGlobal(point))
+			widget.menu.exec(widget.viewport().mapToGlobal(point))
 
 		widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 		cast(widget).customContextMenuRequested.connect(_func)
