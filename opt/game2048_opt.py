@@ -5,7 +5,7 @@ import time
 
 
 def black_box(**weight):
-	board = np.zeros((4, 4), dtype=np.int8)
+	board = np.zeros((4, 4), dtype=np.uint8)
 	MyMatrixer.add(board)
 	MyMatrixer.add(board)
 
@@ -31,13 +31,12 @@ def optimize():
 
 
 def verify():
-	weight = {f"w{i}": w for i, w in enumerate(MyCore.WEIGHT)}
+	weight = {f"w{i}": w for i, w in enumerate(WEIGHT)}
+	n = 100
 	with Pool(processes=cpu_count()) as pool:
 		tictoc = time.time()
-		scores = tuple(pool.imap_unordered(__verify, (weight for _ in range(100))))
-		print(f"[time] {time.time() - tictoc} s")
-		win = sum(score >= 10000 for score in scores)
-		print(f"[win] {round(100 * win / len(scores), 2)} %")
+		win = sum(score >= 10000 for score in pool.imap_unordered(__verify, (weight for _ in range(n))))
+		print(f"[time] {round(time.time() - tictoc, 2)}s  [win] {round(100 * win / n, 2)}%")
 
 
 def __verify(weight):
