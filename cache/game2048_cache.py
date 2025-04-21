@@ -54,9 +54,9 @@ def compute_merge():
 
 
 if __name__ == "__main__":
-	compute_sequential()
-	compute_reversed()
-	compute_mono()
-	compute_smooth()
-	compute_merge()
+	# compute_sequential()
+	# compute_reversed()
+	# compute_mono()
+	# compute_smooth()
+	# compute_merge()
 	pass
