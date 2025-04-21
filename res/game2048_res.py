@@ -16,11 +16,12 @@ def resource_background():
 
 
 def resource_tile():
-	colors = (
+	colors = [
 		QColor(205, 193, 180), QColor(238, 228, 218), QColor(237, 224, 200), QColor(242, 177, 121),
 		QColor(245, 149, 99), QColor(246, 124, 95), QColor(246, 94, 59), QColor(237, 207, 114),
 		QColor(237, 204, 97), QColor(228, 192, 42), QColor(226, 186, 19), QColor(236, 196, 0)
-	)
+	]
+
 	application = QApplication([])
 	for i in range(12):
 		pixmap = QPixmap(100, 100)
