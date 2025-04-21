@@ -22,7 +22,7 @@ def __compute_moves(file_path, step):
 			else:
 				t.append(tile)
 				merged = False
-		cache[bytes(tiles[::step])] = np.array(t + [0] * (4 - len(t)), dtype=np.int8)[::step]
+		cache[bytes(tiles[::step])] = np.array(t + [0] * (4 - len(t)), dtype=np.uint8)[::step]
 	with open(file_path, mode="wb") as file:
 		pickle.dump(cache, file)
 
@@ -54,9 +54,9 @@ def compute_merge():
 
 
 if __name__ == "__main__":
-	# compute_sequential()
-	# compute_reversed()
-	# compute_mono()
-	# compute_smooth()
-	# compute_merge()
+	compute_sequential()
+	compute_reversed()
+	compute_mono()
+	compute_smooth()
+	compute_merge()
 	pass
