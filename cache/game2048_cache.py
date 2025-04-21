@@ -4,27 +4,25 @@ import pickle
 
 
 def compute_sequential():
-	__compute_moves("cache_sequential.pkl", slice(None, None, None))
+	__compute_moves("cache_sequential.pkl", 1)
 
 
 def compute_reversed():
-	__compute_moves("cache_reversed.pkl", slice(None, None, -1))
+	__compute_moves("cache_reversed.pkl", -1)
 
 
-def __compute_moves(file_path, piece):
+def __compute_moves(file_path, step):
 	cache = {}
 	for tiles in product(range(12), repeat=4):
 		t, merged = [], False
-		for tile in tiles:
-			if tile == 0:
-				continue
+		for tile in (tile for tile in tiles if tile != 0):
 			if t and t[-1] == tile and not merged:
 				t[-1] += 1
 				merged = True
 			else:
 				t.append(tile)
 				merged = False
-		cache[bytes(tiles[piece])] = np.array(t + [0] * (4 - len(t)), dtype=np.int8)[piece]
+		cache[bytes(tiles[::step])] = np.array(t + [0] * (4 - len(t)), dtype=np.int8)[::step]
 	with open(file_path, mode="wb") as file:
 		pickle.dump(cache, file)
 
@@ -49,8 +47,7 @@ def compute_smooth():
 def compute_merge():
 	cache = {}
 	for tiles in product(range(12), repeat=4):
-		t = np.array(tiles)
-		t = t[t != 0]
+		t = np.array([tile for tile in tiles if tile != 0])
 		cache[bytes(tiles)] = np.sum(t[:-1][np.diff(t) == 0])
 	with open("cache_merge.pkl", mode="wb") as file:
 		pickle.dump(cache, file)
