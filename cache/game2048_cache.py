@@ -81,6 +81,26 @@ def compute_trail():
 		pickle.dump(cache, file)
 
 
+def compute_trace():
+	with open("cache_sequential.pkl", mode="rb") as file:
+		cache_sequential = pickle.load(file)
+
+	cache = [{}, {}, {}, {}]
+	for previous, i in product(product(range(12), repeat=4), range(4)):
+		subsequent, trace, k = cache_sequential[bytes(previous)].copy(), [], 0
+		for j in range(4):
+			if previous[j] == 0:
+				continue
+			trace.append((((i, j), (i, k)), previous[j]))
+			if subsequent[k] == previous[j]:
+				k += 1
+			else:
+				subsequent[k] -= 1
+		cache[i][bytes(previous)] = tuple(trace[::-1])
+	with open("cache_trace.pkl", mode="wb") as file:
+		pickle.dump(cache, file)
+
+
 if __name__ == "__main__":
 	# compute_sequential()
 	# compute_reversed()
@@ -88,4 +108,5 @@ if __name__ == "__main__":
 	# compute_smooth()
 	# compute_merge()
 	# compute_trail()
+	# compute_trace()
 	pass
