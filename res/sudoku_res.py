@@ -22,7 +22,7 @@ def resource_background():
 
 def resource_tile():
 	application = QApplication([])
-	for i, color in product(range(9), ("black", "gray")):
+	for i, color in product(range(9), ["black", "gray"]):
 		pixmap = QPixmap(60, 60)
 		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
