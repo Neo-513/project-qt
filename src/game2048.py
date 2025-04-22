@@ -16,13 +16,8 @@ CACHE = util.cache("game2048", ["sequential", "reversed", "mono", "smooth", "mer
 class MyCore(QMainWindow, Ui_MainWindow):
 	KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
 	POSITION = {pos: (pos[1] * 115 + 15, pos[0] * 115 + 15) for pos in product(range(4), repeat=2)}
+	TRANS = {"L": lambda m: m, "R": lambda m: m[::-1, ::-1], "U": lambda m: m.T[::-1], "D": lambda m: m[::-1].T}
 	TILE = [util.image(f"../game2048/tile{i}") for i in range(12)]
-	TRANS = {
-		"L": lambda m: m,
-		"R": lambda m: m[::-1, ::-1],
-		"U": lambda m: m.T[::-1],
-		"D": lambda m: m[::-1].T
-	}
 
 	def __init__(self):
 		super().__init__()
