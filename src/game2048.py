@@ -5,30 +5,24 @@ from PyQt6.QtWidgets import QApplication, QMainWindow
 from functools import lru_cache
 from itertools import product
 import numpy as np
-import os
 import random
 import sys
 import util
 
-PATH = {
-	"sequential": util.join_path(util.RESOURCE, "game2048", "cache_sequential.pkl"),
-	"reversed": util.join_path(util.RESOURCE, "game2048", "cache_reversed.pkl"),
-	"mono": util.join_path(util.RESOURCE, "game2048", "cache_mono.pkl"),
-	"smooth": util.join_path(util.RESOURCE, "game2048", "cache_smooth.pkl"),
-	"merge": util.join_path(util.RESOURCE, "game2048", "cache_merge.pkl")
-}
-CACHE = {
-	"sequential": util.read(PATH["sequential"]) if os.path.exists(PATH["sequential"]) else None,
-	"reversed": util.read(PATH["reversed"]) if os.path.exists(PATH["reversed"]) else None,
-	"mono": util.read(PATH["mono"]) if os.path.exists(PATH["mono"]) else None,
-	"smooth": util.read(PATH["smooth"]) if os.path.exists(PATH["smooth"]) else None,
-	"merge": util.read(PATH["merge"]) if os.path.exists(PATH["merge"]) else None
-}
+WEIGHT = (0.605904, 0.900348, 0.196291, 0.508765, 0.909638)
+CACHE = util.cache("game2048", ["sequential", "reversed", "mono", "smooth", "merge", "trail", "trace"])
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	WEIGHT = (0.605904, 0.900348, 0.196291, 0.508765, 0.909638)
 	KEY = {Qt.Key.Key_Left: "L", Qt.Key.Key_Right: "R", Qt.Key.Key_Up: "U", Qt.Key.Key_Down: "D"}
+	POSITION = {pos: (pos[1] * 115 + 15, pos[0] * 115 + 15) for pos in product(range(4), repeat=2)}
+	TILE = [util.image(f"../game2048/tile{i}") for i in range(12)]
+	TRANS = {
+		"L": lambda m: m,
+		"R": lambda m: m[::-1, ::-1],
+		"U": lambda m: m.T[::-1],
+		"D": lambda m: m[::-1].T
+	}
 
 	def __init__(self):
 		super().__init__()
@@ -38,12 +32,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton, self.restart)
 		util.button(self.toolButton, self.botting, "../game2048/nonbotting", ico_size=32)
 		self.label_background.setPixmap(util.pixmap("../game2048/background"))
-		self.label_canvas = util.mask(self.label_background, (9, 56))
+		self.label_canvas = util.mask(self.label_background, (9, 57))
 		self.label_canvas.mousePressEvent = self.press_mouse
 		self.label_canvas.mouseReleaseEvent = self.release_mouse
 		util.pixmap(self.label_canvas)
 
-		self.board = np.zeros((4, 4), dtype=np.int8)
+		self.board = np.zeros((4, 4), dtype=np.uint8)
 		self.timer1 = util.timer(15, self.timeout1)
 		self.timer2 = util.timer(160, self.timeout2)
 		self.mouse_pos = None
@@ -55,30 +49,28 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.timer2.isActive():
 			self.timer2.stop()
 		self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
+
 		self.board.fill(0)
 		MyMatrixer.add(self.board)
 		MyMatrixer.add(self.board)
-		MyDisplayer.display(self)
+		self.display()
 
 	def keyPressEvent(self, event):
 		if self.timer1.isActive() or self.timer2.isActive():
 			return
-		if event.key() in MyCore.KEY:
-			self.act(MyCore.KEY[event.key()])
+		if event.key() in self.KEY:
+			self.act(self.KEY[event.key()])
 
 	def press_mouse(self, event):
+		if self.timer1.isActive() or self.timer2.isActive():
+			return
 		self.mouse_pos = event.pos()
 
 	def release_mouse(self, event):
 		if self.timer1.isActive() or self.timer2.isActive():
 			return
-		if not self.mouse_pos:
-			return
-
 		dx = event.pos().x() - self.mouse_pos.x()
 		dy = event.pos().y() - self.mouse_pos.y()
-		self.mouse_pos = None
-
 		if abs(dx) >= abs(dy):
 			movement = "R" if dx >= 0 else "L"
 		else:
@@ -89,38 +81,43 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.timer2.isActive():
 			self.timer2.stop()
 			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
-			MyDisplayer.display(self)
+			self.display()
 		else:
 			self.toolButton.setIcon(util.icon("../game2048/botting"))
 			self.timer2.start()
 
 	def timeout1(self):
-		self.timer1.frame += 1
-		if self.timer1.frame > 10:
+		if self.timer1.frame >= 10:
 			self.timer1.stop()
-			MyDisplayer.display(self)
-			return
+			self.display()
+		else:
+			self.display(cache=CACHE["trail"][self.timer1.movement])
+			self.timer1.frame += 1
 
-		offset = self.timer1.frame / 10
+	def timeout2(self):
+		self.act(ExpectimaxAlgorithm.solve(self.board, WEIGHT))
+
+	def display(self, cache=None):
 		pixmap = self.label_canvas.pixmap()
 		pixmap.fill(Qt.GlobalColor.transparent)
 		with QPainter(pixmap) as painter:
-			for (sx, sy), (ex, ey), tile in self.timer1.trails:
-				pos = round(sx + (ex - sx) * offset), round(sy + (ey - sy) * offset)
-				painter.drawImage(*pos, MyDisplayer.TILE[tile])
+			if cache:
+				for trail, tile in self.timer1.trails:
+					position = cache[trail][self.timer1.frame]
+					painter.drawImage(*position, self.TILE[tile])
+			else:
+				for pos, position in self.POSITION.items():
+					if self.board[pos] != 0:
+						painter.drawImage(*position, self.TILE[self.board[pos]])
 		self.label_canvas.setPixmap(pixmap)
 
-	def timeout2(self):
-		if MyMatrixer.win(self.board) or MyMatrixer.lose(self.board):
-			return
-		self.act(ExpectimaxAlgorithm.solve(self.board, MyCore.WEIGHT))
-
 	def act(self, movement):
-		previous = self.board.copy()
+		previous = self.TRANS[movement](self.board.copy())
 		self.board = MyMatrixer.move(self.board, movement)
 
 		self.timer1.frame = 0
-		self.timer1.trails = MyDisplayer.track(previous.copy(), self.board.copy(), movement)
+		self.timer1.movement = movement
+		self.timer1.trails = [t for i in range(4) for t in CACHE["trace"][i][previous[i].tobytes()]]
 		self.timer1.start()
 
 		if MyMatrixer.win(self.board):
@@ -135,54 +132,6 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.toolButton.setIcon(util.icon("../game2048/nonbotting"))
 			util.dialog("You lose", "error")
 			return self.restart()
-
-
-class MyDisplayer:
-	TILE = tuple(util.image(f"../game2048/tile{i}") for i in range(12))
-	GROOVE = tuple(tuple((j * 115 + 15, i * 115 + 15) for j in range(4)) for i in range(4))
-	TRANS = {
-		"L": lambda x, y: MyDisplayer.GROOVE[x][y],
-		"R": lambda x, y: MyDisplayer.GROOVE[3 - x][3 - y],
-		"U": lambda x, y: MyDisplayer.GROOVE[y][3 - x],
-		"D": lambda x, y: MyDisplayer.GROOVE[3 - y][x]
-	}
-
-	@staticmethod
-	def display(self):
-		pixmap = self.label_canvas.pixmap()
-		pixmap.fill(Qt.GlobalColor.transparent)
-		with QPainter(pixmap) as painter:
-			for i, groove in enumerate(MyDisplayer.GROOVE):
-				for j, pos in enumerate(groove):
-					if self.board[i, j] != 0:
-						painter.drawImage(*pos, MyDisplayer.TILE[self.board[i, j]])
-		self.label_canvas.setPixmap(pixmap)
-
-	@staticmethod
-	def track(previous, subsequent, movement):
-		trans = MyDisplayer.TRANS[movement]
-		if movement == "R":
-			previous = previous[::-1, ::-1]
-			subsequent = subsequent[::-1, ::-1]
-		if movement == "U":
-			previous = previous.T[::-1]
-			subsequent = subsequent.T[::-1]
-		if movement == "D":
-			previous = previous[::-1].T
-			subsequent = subsequent[::-1].T
-
-		trails = []
-		for i in range(4):
-			k = 0
-			for j in range(4):
-				if previous[i, j] == 0:
-					continue
-				trails.append((trans(i, j), trans(i, k), previous[i, j]))
-				if subsequent[i, k] == previous[i, j]:
-					k += 1
-				else:
-					subsequent[i, k] -= 1
-		return trails[::-1]
 
 
 class MyMatrixer:
@@ -223,7 +172,7 @@ class ExpectimaxAlgorithm:
 	@staticmethod
 	@lru_cache(maxsize=100000)
 	def __search_cache(board, weight, depth, max_depth):
-		board = np.frombuffer(board, dtype=np.int8).reshape((4, 4))
+		board = np.frombuffer(board, dtype=np.uint8).reshape((4, 4))
 		return ExpectimaxAlgorithm.__search_nocache(board, weight, depth, max_depth)
 
 	@staticmethod
@@ -260,19 +209,22 @@ class ExpectimaxAlgorithm:
 	def evaluate(board, weight):
 		mono = smooth = merge = 0
 		for b in board:
-			byt = b.tobytes()
-			mono += CACHE["mono"][byt]
-			smooth -= CACHE["smooth"][byt]
-			merge += CACHE["merge"][byt]
+			bt = b.tobytes()
+			mono += CACHE["mono"][bt]
+			smooth -= CACHE["smooth"][bt]
+			merge += CACHE["merge"][bt]
 		for b in board.T:
-			byt = b.tobytes()
-			mono += CACHE["mono"][byt]
-			smooth -= CACHE["smooth"][byt]
-			merge += CACHE["merge"][byt]
-		return (
-			weight[0] * (np.max(board) in (board[0, 0], board[0, 3], board[3, 0], board[3, 3])) * 15 +
-			weight[1] * np.sum(board == 0) + weight[2] * mono + weight[3] * smooth + weight[4] * merge
-		)
+			bt = b.tobytes()
+			mono += CACHE["mono"][bt]
+			smooth -= CACHE["smooth"][bt]
+			merge += CACHE["merge"][bt]
+
+		s0 = weight[0] * (np.max(board) in (board[0, 0], board[0, 3], board[3, 0], board[3, 3])) * 15
+		s1 = weight[1] * np.sum(board == 0)
+		s2 = weight[2] * mono
+		s3 = weight[3] * smooth
+		s4 = weight[4] * merge
+		return s0 + s1 + s2 + s3 + s4
 
 
 if __name__ == "__main__":
