@@ -19,7 +19,7 @@ def black_box(**weight):
 			return step * 5 + np.max(board) * 300
 		previous = board.copy()
 		board = MyMatrixer.move(board, ExpectimaxAlgorithm.solve(board, weight))
-		if not np.array_equal(board, previous):
+		if 0 in board and not np.array_equal(board, previous):
 			MyMatrixer.add(board)
 	return 0
 
