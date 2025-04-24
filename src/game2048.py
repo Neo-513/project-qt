@@ -120,7 +120,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			util.dialog("You win", "success")
 			return self.restart()
 
-		if not np.array_equal(self.board, previous):
+		if 0 in self.board and not np.array_equal(self.board, previous):
 			MyMatrixer.add(self.board)
 
 		if MyMatrixer.lose(self.board):
