@@ -27,10 +27,9 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton, self.restart)
 		util.button(self.toolButton, self.botting, "../game2048/nonbotting", ico_size=32)
 		self.label_background.setPixmap(util.pixmap("../game2048/background"))
-		self.label_canvas = util.mask(self.label_background, (9, 57))
+		self.label_canvas = util.mask(self.label_background, (9, 57), None)
 		self.label_canvas.mousePressEvent = self.press_mouse
 		self.label_canvas.mouseReleaseEvent = self.release_mouse
-		util.pixmap(self.label_canvas)
 
 		self.board = np.zeros((4, 4), dtype=np.uint8)
 		self.timer1 = util.timer(15, self.timeout1)
