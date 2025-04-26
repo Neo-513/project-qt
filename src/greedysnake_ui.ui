@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>618</width>
-    <height>620</height>
+    <height>609</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,11 +18,8 @@
     <property name="topMargin">
      <number>0</number>
     </property>
-    <property name="bottomMargin">
-     <number>0</number>
-    </property>
     <item row="0" column="0">
-     <widget class="QLabel" name="label">
+     <widget class="QLabel" name="label_canvas">
       <property name="minimumSize">
        <size>
         <width>600</width>
@@ -33,7 +30,6 @@
     </item>
    </layout>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
  <connections/>
