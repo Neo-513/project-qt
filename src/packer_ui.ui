@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>500</height>
+    <width>618</width>
+    <height>411</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -65,68 +65,36 @@
        </layout>
       </item>
       <item row="0" column="0">
-       <widget class="QLineEdit" name="lineEdit">
-        <property name="placeholderText">
-         <string>文件夹路径</string>
-        </property>
-       </widget>
+       <widget class="QLineEdit" name="lineEdit"/>
       </item>
       <item row="0" column="2">
-       <widget class="QPushButton" name="pushButton_select">
-        <property name="text">
-         <string>选择文件夹</string>
-        </property>
-       </widget>
+       <widget class="QPushButton" name="pushButton_folder"/>
       </item>
      </layout>
     </item>
     <item>
-     <widget class="QPlainTextEdit" name="plainTextEdit_cmd">
-      <property name="maximumSize">
+     <widget class="QPlainTextEdit" name="plainTextEdit_command">
+      <property name="minimumSize">
        <size>
-        <width>16777215</width>
-        <height>140</height>
+        <width>600</width>
+        <height>75</height>
        </size>
       </property>
       <property name="readOnly">
        <bool>true</bool>
       </property>
+      <property name="plainText">
+       <string/>
+      </property>
      </widget>
     </item>
     <item>
-     <widget class="QPlainTextEdit" name="plainTextEdit_feedback">
-      <property name="palette">
-       <palette>
-        <active>
-         <colorrole role="Base">
-          <brush brushstyle="SolidPattern">
-           <color alpha="255">
-            <red>0</red>
-            <green>0</green>
-            <blue>0</blue>
-           </color>
-          </brush>
-         </colorrole>
-        </active>
-        <inactive>
-         <colorrole role="Base">
-          <brush brushstyle="SolidPattern">
-           <color alpha="255">
-            <red>0</red>
-            <green>0</green>
-            <blue>0</blue>
-           </color>
-          </brush>
-         </colorrole>
-        </inactive>
-        <disabled/>
-       </palette>
-      </property>
-      <property name="lineWrapMode">
-       <enum>QPlainTextEdit::LineWrapMode::NoWrap</enum>
-      </property>
-      <property name="readOnly">
-       <bool>true</bool>
+     <widget class="QPlainTextEdit" name="plainTextEdit_console">
+      <property name="minimumSize">
+       <size>
+        <width>600</width>
+        <height>250</height>
+       </size>
       </property>
      </widget>
     </item>
