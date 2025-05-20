@@ -9,12 +9,13 @@ import util
 class MyCore(QMainWindow, Ui_MainWindow):
 	COMMAND = {
 		"exe": (
-			"pyinstaller -w -F src/%f.py --distpath release --specpath build --workpath build\n"
-			"--icon=%p/static/%f/logo.png\n"
-			"--add-data=%p/static/common;static/common\n"
-			"--add-data=%p/static/%f;static/%f"
+			"pyinstaller -w -F src/%.py\n"
+			"--distpath build --specpath build --workpath build\n"
+			"--icon=../static/%/logo.png\n"
+			"--add-data=../static/common;static/common\n"
+			"--add-data=../static/%;static/%"
 		),
-		"ui": "python -m PyQt6.uic.pyuic src/%f_ui.ui -o src/%f_ui.py"
+		"ui": "python -m PyQt6.uic.pyuic src/%_ui.ui -o src/%_ui.py"
 	}
 
 	def __init__(self):
@@ -74,7 +75,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			return
 
 		command = self.COMMAND["exe" if self.radioButton_exe.isChecked() else "ui"]
-		self.plainTextEdit_command.setPlainText(command.replace("%p", path).replace("%f", file))
+		self.plainTextEdit_command.setPlainText(command.replace("%", file))
 
 	def process_log(self):
 		log = self.process.readAllStandardError().data().decode("gbk")

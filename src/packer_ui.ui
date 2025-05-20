@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>618</width>
-    <height>411</height>
+    <width>568</width>
+    <height>427</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -76,15 +76,12 @@
      <widget class="QPlainTextEdit" name="plainTextEdit_command">
       <property name="minimumSize">
        <size>
-        <width>600</width>
-        <height>75</height>
+        <width>550</width>
+        <height>91</height>
        </size>
       </property>
       <property name="readOnly">
        <bool>true</bool>
-      </property>
-      <property name="plainText">
-       <string/>
       </property>
      </widget>
     </item>
@@ -92,7 +89,7 @@
      <widget class="QPlainTextEdit" name="plainTextEdit_console">
       <property name="minimumSize">
        <size>
-        <width>600</width>
+        <width>550</width>
         <height>250</height>
        </size>
       </property>
