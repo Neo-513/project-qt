@@ -18,13 +18,13 @@
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
-       <widget class="QGroupBox" name="groupBox_target">
+       <widget class="QGroupBox" name="groupBox_reference">
         <property name="title">
          <string>原图</string>
         </property>
         <layout class="QGridLayout" name="gridLayout_2">
          <item row="0" column="0">
-          <widget class="QLabel" name="label_target">
+          <widget class="QLabel" name="label_reference">
            <property name="minimumSize">
             <size>
              <width>128</width>
@@ -125,10 +125,10 @@
              <bool>true</bool>
             </property>
             <property name="plainText">
-             <string>Current Iteration
-SSIM
-Coordinate Pertubation
-Color Pertubation</string>
+             <string>step
+ssim
+pertubation (coord)
+pertubation (color)</string>
             </property>
            </widget>
           </item>

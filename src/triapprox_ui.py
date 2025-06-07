@@ -19,16 +19,16 @@ class Ui_MainWindow(object):
         self.verticalLayout.setObjectName("verticalLayout")
         self.horizontalLayout = QtWidgets.QHBoxLayout()
         self.horizontalLayout.setObjectName("horizontalLayout")
-        self.groupBox_target = QtWidgets.QGroupBox(parent=self.centralwidget)
-        self.groupBox_target.setObjectName("groupBox_target")
-        self.gridLayout_2 = QtWidgets.QGridLayout(self.groupBox_target)
+        self.groupBox_reference = QtWidgets.QGroupBox(parent=self.centralwidget)
+        self.groupBox_reference.setObjectName("groupBox_reference")
+        self.gridLayout_2 = QtWidgets.QGridLayout(self.groupBox_reference)
         self.gridLayout_2.setObjectName("gridLayout_2")
-        self.label_target = QtWidgets.QLabel(parent=self.groupBox_target)
-        self.label_target.setMinimumSize(QtCore.QSize(128, 128))
-        self.label_target.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.label_target.setObjectName("label_target")
-        self.gridLayout_2.addWidget(self.label_target, 0, 0, 1, 1)
-        self.horizontalLayout.addWidget(self.groupBox_target)
+        self.label_reference = QtWidgets.QLabel(parent=self.groupBox_reference)
+        self.label_reference.setMinimumSize(QtCore.QSize(128, 128))
+        self.label_reference.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.label_reference.setObjectName("label_reference")
+        self.gridLayout_2.addWidget(self.label_reference, 0, 0, 1, 1)
+        self.horizontalLayout.addWidget(self.groupBox_reference)
         self.groupBox_approx = QtWidgets.QGroupBox(parent=self.centralwidget)
         self.groupBox_approx.setObjectName("groupBox_approx")
         self.gridLayout_3 = QtWidgets.QGridLayout(self.groupBox_approx)
@@ -96,15 +96,15 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "几何拟合"))
-        self.groupBox_target.setTitle(_translate("MainWindow", "原图"))
+        self.groupBox_reference.setTitle(_translate("MainWindow", "原图"))
         self.groupBox_approx.setTitle(_translate("MainWindow", "拟合"))
         self.radioButton_monalisa.setText(_translate("MainWindow", "蒙娜丽莎"))
         self.radioButton_firefox.setText(_translate("MainWindow", "火狐"))
         self.radioButton_darwin.setText(_translate("MainWindow", "达尔文"))
         self.radioButton_custom.setText(_translate("MainWindow", "自选"))
         self.pushButton_fit.setText(_translate("MainWindow", "拟合"))
-        self.plainTextEdit_log1.setPlainText(_translate("MainWindow", "Current Iteration\n"
-"SSIM\n"
-"Coordinate Pertubation\n"
-"Color Pertubation"))
+        self.plainTextEdit_log1.setPlainText(_translate("MainWindow", "step\n"
+"ssim\n"
+"pertubation (coord)\n"
+"pertubation (color)"))
         self.groupBox_plot.setTitle(_translate("MainWindow", "拟合曲线"))

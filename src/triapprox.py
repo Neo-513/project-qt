@@ -24,8 +24,8 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_fit, self.fit, "../triapprox/fit")
 
 		self.thread = Thread()
-		util.cast(self.thread.signal_target).connect(lambda img_size: self.display(img_size))
-		util.cast(self.thread.signal_approx).connect(lambda img_size, img_data: self.display(img_size, img_data=img_data))
+		util.cast(self.thread.signal_reference).connect(lambda img_size: self.display(img_size))
+		util.cast(self.thread.signal_approx).connect(lambda img_size, data: self.display(img_size, data=data))
 		util.cast(self.thread.signal_log).connect(self.thread_log)
 		util.cast(self.thread.signal_finished).connect(self.thread_finished)
 
@@ -34,26 +34,26 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.indicator = pyqtgraph.InfiniteLine(pos=0, pen="g")
 
 		self.timer = util.timer(1000, self.clocking)
-		self.preloads = {img_name: Fitter.load(img_name) for img_name in ["mona_lisa", "firefox", "darwin"]}
-		self.targets = None
+		self.preloads = {name: Fitter.load(name) for name in ["mona_lisa", "firefox", "darwin"]}
+		self.references = None
 		self.radioButton_monalisa.click()
 
-	def switch(self, img_name, img_size=128):
-		self.targets = None
-		util.pixmap(self.label_target, Qt.GlobalColor.transparent)
+	def switch(self, name, img_size=128):
+		self.references = None
+		util.pixmap(self.label_reference, Qt.GlobalColor.transparent)
 		util.pixmap(self.label_approx, Qt.GlobalColor.transparent)
 
-		if img_name == "custom":
+		if name == "custom":
 			path = QFileDialog.getOpenFileName(filter="*.png")[0]
 			if not path:
 				return
-			self.targets = Fitter.load(path, preload=False)
+			self.references = Fitter.load(path, preload=False)
 		else:
-			self.targets = self.preloads[img_name]
+			self.references = self.preloads[name]
 		self.display(img_size)
 
 	def fit(self):
-		if not self.targets:
+		if not self.references:
 			return util.dialog("请选择图片", "error")
 
 		if self.pushButton_fit.running:
@@ -75,16 +75,16 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.timer.second = 0
 			self.timer.start()
 
-			self.thread.targets = self.targets
+			self.thread.references = self.references
 			self.thread.start()
 
-	def display(self, img_size, img_data=None):
-		if img_data:
-			image = QImage(img_data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
+	def display(self, img_size, data=None):
+		if data:
+			image = QImage(data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
 			self.label_approx.setPixmap(QPixmap(image))
 		else:
-			image = QImage(self.targets[img_size].data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
-			self.label_target.setPixmap(QPixmap(image))
+			image = QImage(self.references[img_size].data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
+			self.label_reference.setPixmap(QPixmap(image))
 
 	def clocking(self):
 		self.timer.second += 1
@@ -94,17 +94,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.plot.addItem(pyqtgraph.InfiniteLine(pos=len(self.values), pen="m"))
 
 	def thread_log(self, step, diff, perturbation):
-		self.plainTextEdit_log2.setPlainText(
-			f"{step + 1}\n"
-			f"{diff:.4f}\n"
-			f"{perturbation[0]}\n"
-			f"{perturbation[1]}"
-		)
-
-
+		self.plainTextEdit_log2.setPlainText(f"{step + 1}\n{diff:.4f}\n{perturbation[0]}\n{perturbation[1]}")
+		self.indicator.setPos(step)
 		self.values.append(diff)
 		self.graph.setData(self.values)
-		self.indicator.setPos(step)
 
 	def thread_finished(self):
 		self.thread.running = False
@@ -130,12 +123,12 @@ class Fitter:
 	@staticmethod
 	def load(path, preload=True):
 		path = f"../static/triapprox/{path}.png" if preload else path
-		img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
+		reference = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
 		return {
-			16: cv2.GaussianBlur(cv2.resize(img, (16, 16)), (5, 5), 0).astype(np.uint8),
-			32: cv2.GaussianBlur(cv2.resize(img, (32, 32)), (3, 3), 0).astype(np.uint8),
-			64: cv2.resize(img, (64, 64)).astype(np.uint8),
-			128: cv2.resize(img, (128, 128)).astype(np.uint8)
+			16: cv2.GaussianBlur(cv2.resize(reference, (16, 16)), (5, 5), 0).astype(np.uint8),
+			32: cv2.GaussianBlur(cv2.resize(reference, (32, 32)), (3, 3), 0).astype(np.uint8),
+			64: cv2.resize(reference, (64, 64)).astype(np.uint8),
+			128: cv2.resize(reference, (128, 128)).astype(np.uint8)
 		}
 
 	@staticmethod
@@ -152,7 +145,7 @@ class Fitter:
 		return np.clip(coord, 0, img_size - 1), np.clip(color, 0, 255)
 
 	@staticmethod
-	def tri_layer(img_size, triangle):
+	def overlay(img_size, triangle):
 		layer = np.zeros((img_size, img_size, 4), dtype=np.uint8)
 		(x1, y1, x2, y2, x3, y3), (r, g, b, a) = triangle
 		pts = [np.array([(x1, y1), (x2, y2), (x3, y3)], dtype=int)]
@@ -161,7 +154,7 @@ class Fitter:
 		return layer[:, :, :-1], layer[:, :, -1:] / 255
 
 	@staticmethod
-	def overlay(layers, tri, background, layer):
+	def blend(layers, tri, background, layer):
 		layer, alpha = layer
 		buffers = [alpha * layer + (1 - alpha) * background]
 		for i in range(tri + 1, len(layers)):
@@ -171,7 +164,7 @@ class Fitter:
 
 
 class Thread(QThread):
-	signal_target = pyqtSignal(int)
+	signal_reference = pyqtSignal(int)
 	signal_approx = pyqtSignal(int, bytes)
 	signal_log = pyqtSignal(int, float, tuple)
 	signal_finished = pyqtSignal()
@@ -179,10 +172,10 @@ class Thread(QThread):
 	def __init__(self):
 		super().__init__()
 		self.running = False
-		self.targets = None
+		self.references = None
 
 	def run(self):
-		buffers = img = diff = perturbation = None
+		buffers = approx = diff = perturbation = None
 
 
 
@@ -196,9 +189,9 @@ class Thread(QThread):
 
 			if img_size is None or (img_size == 16 and diff >= 0.8) or (img_size == 32 and diff >= 0.75) or (img_size == 64 and diff >= 0.65):
 				img_size = (img_size * 2) if img_size else Fitter.IMG_SIZE[0]
-				buffers, img, diff = self.initialize_stage(img_size, triangles, layers)
-				util.cast(self.signal_target).emit(img_size)
-				util.cast(self.signal_approx).emit(img_size, img.tobytes())
+				buffers, approx, diff = self.initialize_stage(img_size, triangles, layers)
+				util.cast(self.signal_reference).emit(img_size)
+				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
 				continue
 
 			if img_size == 16:
@@ -223,20 +216,20 @@ class Thread(QThread):
 
 			tri = Fitter.TRI[step]
 			new_triangle = Fitter.perturb(img_size, triangles[tri], Fitter.PROB[step], perturbation)
-			new_layer = Fitter.tri_layer(img_size, new_triangle)
-			new_buffers = Fitter.overlay(layers, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer)
-			new_img = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
-			new_diff = ssim(self.targets[img_size], new_img, channel_axis=2)
+			new_layer = Fitter.overlay(img_size, new_triangle)
+			new_buffers = Fitter.blend(layers, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer)
+			new_approx = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
+			new_diff = ssim(self.references[img_size], new_approx, channel_axis=2)
 
 			if new_diff > diff:
 				diff = new_diff
-				img = new_img
+				approx = new_approx
 				triangles[tri] = new_triangle
 				layers[tri] = new_layer
 				buffers[tri:] = new_buffers
 
 			util.cast(self.signal_log).emit(step, diff, perturbation)
-			util.cast(self.signal_approx).emit(img_size, img.tobytes())
+			util.cast(self.signal_approx).emit(img_size, approx.tobytes())
 		util.cast(self.signal_finished).emit()
 
 	@staticmethod
@@ -244,13 +237,12 @@ class Thread(QThread):
 		for i, triangle in enumerate(triangles):
 			triangles[i] = Fitter.initialize(img_size) if img_size == 16 else (tuple(c * 2 for c in triangle[0]), triangle[1])
 		for i in range(len(layers)):
-			layers[i] = Fitter.tri_layer(img_size, triangles[i])
+			layers[i] = Fitter.overlay(img_size, triangles[i])
 
-		buffers = Fitter.overlay(layers, 0, Fitter.BASE[img_size], layers[0])
-		img = np.clip(buffers[-1], 0, 255).astype(np.uint8)
-		diff = -1#ssim(self.targets[img_size], img, channel_axis=2)
-
-		return buffers, img, diff
+		buffers = Fitter.blend(layers, 0, Fitter.BASE[img_size], layers[0])
+		approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
+		diff = -1
+		return buffers, approx, diff
 
 
 if __name__ == "__main__":
