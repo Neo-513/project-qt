@@ -34,9 +34,20 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.indicator = pyqtgraph.InfiniteLine(pos=0, pen="g")
 
 		self.timer = util.timer(1000, self.clocking)
-		self.preloads = {name: Fitter.load(name) for name in ["mona_lisa", "firefox", "darwin"]}
+		self.preloads = {name: self.load(name) for name in ["mona_lisa", "firefox", "darwin"]}
 		self.references = None
 		self.radioButton_monalisa.click()
+
+	@staticmethod
+	def load(path, preload=True):
+		path = f"../static/triapprox/{path}.png" if preload else path
+		reference = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
+		return {
+			16: cv2.GaussianBlur(cv2.resize(reference, (16, 16)), (5, 5), 0).astype(np.uint8),
+			32: cv2.GaussianBlur(cv2.resize(reference, (32, 32)), (3, 3), 0).astype(np.uint8),
+			64: cv2.resize(reference, (64, 64)).astype(np.uint8),
+			128: cv2.resize(reference, (128, 128)).astype(np.uint8)
+		}
 
 	def switch(self, name, img_size=128):
 		self.references = None
@@ -47,7 +58,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			path = QFileDialog.getOpenFileName(filter="*.png")[0]
 			if not path:
 				return
-			self.references = Fitter.load(path, preload=False)
+			self.references = self.load(path, preload=False)
 		else:
 			self.references = self.preloads[name]
 		self.display(img_size)
@@ -119,17 +130,6 @@ class Fitter:
 	BASE = {img_size: np.zeros((img_size, img_size, 3), dtype=np.uint8) for img_size in IMG_SIZE}
 	PROB = np.random.randint(2, size=GENERATION, dtype=np.uint8)
 	TRI = np.random.randint(TRIANGLE_COUNT, size=GENERATION, dtype=np.uint8)
-
-	@staticmethod
-	def load(path, preload=True):
-		path = f"../static/triapprox/{path}.png" if preload else path
-		reference = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
-		return {
-			16: cv2.GaussianBlur(cv2.resize(reference, (16, 16)), (5, 5), 0).astype(np.uint8),
-			32: cv2.GaussianBlur(cv2.resize(reference, (32, 32)), (3, 3), 0).astype(np.uint8),
-			64: cv2.resize(reference, (64, 64)).astype(np.uint8),
-			128: cv2.resize(reference, (128, 128)).astype(np.uint8)
-		}
 
 	@staticmethod
 	def initialize(img_size):
