@@ -146,19 +146,18 @@ class Fitter:
 
 	@staticmethod
 	def overlay(img_size, triangle):
-		layer = np.zeros((img_size, img_size, 4), dtype=np.uint8)
+		layer_rgba = np.zeros((img_size, img_size, 4), dtype=np.uint8)
 		(x1, y1, x2, y2, x3, y3), (r, g, b, a) = triangle
 		pts = [np.array([(x1, y1), (x2, y2), (x3, y3)], dtype=int)]
 		color = int(b), int(g), int(r), int(a)
-		cv2.fillPoly(layer, pts, color)
-		return layer[:, :, :-1], layer[:, :, -1:] / 255
+		cv2.fillPoly(layer_rgba, pts, color)
+		return layer_rgba[:, :, :-1], layer_rgba[:, :, -1:] / 255
 
 	@staticmethod
-	def blend(layers, tri, background, layer):
-		layer, alpha = layer
+	def blend(layers, alphas, tri, background, layer, alpha):
 		buffers = [alpha * layer + (1 - alpha) * background]
 		for i in range(tri + 1, len(layers)):
-			layer, alpha = layers[i]
+			layer, alpha = layers[i], alphas[i]
 			buffers.append(alpha * layer + (1 - alpha) * buffers[-1])
 		return buffers
 
@@ -175,12 +174,11 @@ class Thread(QThread):
 		self.references = None
 
 	def run(self):
-		buffers = approx = diff = perturbation = None
-
-
-
-		img_size = None
-		triangles, layers = [None] * Fitter.TRIANGLE_COUNT, [None] * Fitter.TRIANGLE_COUNT
+		img_size = perturbation = None
+		buffers = approx = diff = None
+		triangles = [None] * Fitter.TRIANGLE_COUNT
+		layers = [None] * Fitter.TRIANGLE_COUNT
+		alphas = [None] * Fitter.TRIANGLE_COUNT
 
 		self.running = True
 		for step in range(Fitter.GENERATION):
@@ -189,7 +187,7 @@ class Thread(QThread):
 
 			if img_size is None or (img_size == 16 and diff >= 0.8) or (img_size == 32 and diff >= 0.75) or (img_size == 64 and diff >= 0.65):
 				img_size = (img_size * 2) if img_size else Fitter.IMG_SIZE[0]
-				buffers, approx, diff = self.initialize_stage(img_size, triangles, layers)
+				buffers, approx, diff = self.initialize_stage(img_size, triangles, layers, alphas)
 				util.cast(self.signal_reference).emit(img_size)
 				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
 				continue
@@ -216,8 +214,8 @@ class Thread(QThread):
 
 			tri = Fitter.TRI[step]
 			new_triangle = Fitter.perturb(img_size, triangles[tri], Fitter.PROB[step], perturbation)
-			new_layer = Fitter.overlay(img_size, new_triangle)
-			new_buffers = Fitter.blend(layers, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer)
+			new_layer, new_alpha = Fitter.overlay(img_size, new_triangle)
+			new_buffers = Fitter.blend(layers, alphas, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer, new_alpha)
 			new_approx = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
 			new_diff = ssim(self.references[img_size], new_approx, channel_axis=2)
 
@@ -226,6 +224,7 @@ class Thread(QThread):
 				approx = new_approx
 				triangles[tri] = new_triangle
 				layers[tri] = new_layer
+				alphas[tri] = new_alpha
 				buffers[tri:] = new_buffers
 
 			util.cast(self.signal_log).emit(step, diff, perturbation)
@@ -233,13 +232,13 @@ class Thread(QThread):
 		util.cast(self.signal_finished).emit()
 
 	@staticmethod
-	def initialize_stage(img_size, triangles, layers):
+	def initialize_stage(img_size, triangles, layers, alphas):
 		for i, triangle in enumerate(triangles):
 			triangles[i] = Fitter.initialize(img_size) if img_size == 16 else (tuple(c * 2 for c in triangle[0]), triangle[1])
-		for i in range(len(layers)):
-			layers[i] = Fitter.overlay(img_size, triangles[i])
+		for i in range(len(triangles)):
+			layers[i], alphas[i] = Fitter.overlay(img_size, triangles[i])
 
-		buffers = Fitter.blend(layers, 0, Fitter.BASE[img_size], layers[0])
+		buffers = Fitter.blend(layers, alphas, 0, Fitter.BASE[img_size], layers[0], alphas[0])
 		approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
 		diff = -1
 		return buffers, approx, diff
