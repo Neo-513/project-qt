@@ -11,9 +11,6 @@ import sys
 import util
 
 
-import mylibrary.myutil as mu
-
-
 class MyCore(QMainWindow, Ui_MainWindow):
 	def __init__(self):
 		super().__init__()
@@ -142,26 +139,8 @@ class Fitter:
 		}
 
 	@staticmethod
-	def tri_initialize(img_size):
+	def initialize(img_size):
 		return tuple(np.random.randint(img_size, size=6)), tuple(np.random.randint(256, size=4))
-
-	@staticmethod
-	def tri_layer(img_size, triangle):
-		layer = np.zeros((img_size, img_size, 4), dtype=np.uint8)
-		(x1, y1, x2, y2, x3, y3), (r, g, b, a) = triangle
-		pts = [np.array([(x1, y1), (x2, y2), (x3, y3)], dtype=int)]
-		color = [int(b), int(g), int(r), int(a)]
-		cv2.fillPoly(layer, pts, color)
-		return layer[:, :, :-1], layer[:, :, -1:] / 255
-
-	@staticmethod
-	def tri_buffer(layers, tri, background, layer):
-		layer, alpha = layer
-		buffers = [alpha * layer + (1 - alpha) * background]
-		for i in range(tri + 1, len(layers)):
-			layer, alpha = layers[i]
-			buffers.append(alpha * layer + (1 - alpha) * buffers[-1])
-		return buffers
 
 	@staticmethod
 	def perturb(img_size, triangle, prob, perturbation):
@@ -171,6 +150,24 @@ class Fitter:
 		else:
 			color = tuple(c + random.randint(-perturbation[1], perturbation[1]) for c in color)
 		return np.clip(coord, 0, img_size - 1), np.clip(color, 0, 255)
+
+	@staticmethod
+	def tri_layer(img_size, triangle):
+		layer = np.zeros((img_size, img_size, 4), dtype=np.uint8)
+		(x1, y1, x2, y2, x3, y3), (r, g, b, a) = triangle
+		pts = [np.array([(x1, y1), (x2, y2), (x3, y3)], dtype=int)]
+		color = int(b), int(g), int(r), int(a)
+		cv2.fillPoly(layer, pts, color)
+		return layer[:, :, :-1], layer[:, :, -1:] / 255
+
+	@staticmethod
+	def overlay(layers, tri, background, layer):
+		layer, alpha = layer
+		buffers = [alpha * layer + (1 - alpha) * background]
+		for i in range(tri + 1, len(layers)):
+			layer, alpha = layers[i]
+			buffers.append(alpha * layer + (1 - alpha) * buffers[-1])
+		return buffers
 
 
 class Thread(QThread):
@@ -184,37 +181,25 @@ class Thread(QThread):
 		self.running = False
 		self.targets = None
 
-	# @mu.performance
 	def run(self):
-		triangles = layers = buffers = img = diff = img_size = perturbation = None
+		buffers = img = diff = perturbation = None
+
+
+
+		img_size = None
+		triangles, layers = [None] * Fitter.TRIANGLE_COUNT, [None] * Fitter.TRIANGLE_COUNT
 
 		self.running = True
 		for step in range(Fitter.GENERATION):
 			if not self.running:
 				break
 
-			if (img_size is None) or (img_size == 16 and diff >= 0.8) or (img_size == 32 and diff >= 0.75) or (img_size == 64 and diff >= 0.65):
-				if img_size is None:
-					img_size = 8
-				triangles, img_size, layers, buffers, img, diff = self.initialize_stage(img_size * 2, triangles)
-				# triangles, img_size = self.initialize_stage(img_size * 2, triangles)
-
+			if img_size is None or (img_size == 16 and diff >= 0.8) or (img_size == 32 and diff >= 0.75) or (img_size == 64 and diff >= 0.65):
+				img_size = (img_size * 2) if img_size else Fitter.IMG_SIZE[0]
+				buffers, img, diff = self.initialize_stage(img_size, triangles, layers)
 				util.cast(self.signal_target).emit(img_size)
 				util.cast(self.signal_approx).emit(img_size, img.tobytes())
-
-
-			# if img_size is None:
-			# 	triangles, img_size, layers, buffers, img, diff = self.initialize_stage(16, triangles)
-			# if img_size == 16 and diff >= 0.8:
-			# 	triangles, img_size, layers, buffers, img, diff = self.initialize_stage(32, triangles)
-			# if img_size == 32 and diff >= 0.75:
-			# 	triangles, img_size, layers, buffers, img, diff = self.initialize_stage(64, triangles)
-			# 	# print(f"{diff:.4f}")
-			# if img_size == 64 and diff >= 0.65:
-			# 	triangles, img_size, layers, buffers, img, diff = self.initialize_stage(128, triangles)
-
-			if img_size == 128 and diff >= 0.75:
-				break
+				continue
 
 			if img_size == 16:
 				perturbation = 10, 35
@@ -223,10 +208,11 @@ class Thread(QThread):
 			if img_size == 64:
 				perturbation = 6, 25
 			if img_size == 128:
-				break
 				perturbation = 4, 4
 			if img_size == 128 and diff >= 0.6:
 				perturbation = 3, 3
+				break
+			if img_size == 128 and diff >= 0.75:
 				break
 			# if img_size == 128 and diff >= 0.575:
 			# 	perturbation = 3, 3
@@ -238,13 +224,11 @@ class Thread(QThread):
 			tri = Fitter.TRI[step]
 			new_triangle = Fitter.perturb(img_size, triangles[tri], Fitter.PROB[step], perturbation)
 			new_layer = Fitter.tri_layer(img_size, new_triangle)
-			new_buffers = Fitter.tri_buffer(layers, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer)
+			new_buffers = Fitter.overlay(layers, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer)
 			new_img = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
 			new_diff = ssim(self.targets[img_size], new_img, channel_axis=2)
 
 			if new_diff > diff:
-				# if img_size == 128:
-				# 	print((np.array(new_triangle[0]) - np.array(triangles[tri][0])).tolist(), (np.array(new_triangle[1]) - np.array(triangles[tri][1])).tolist())
 				diff = new_diff
 				img = new_img
 				triangles[tri] = new_triangle
@@ -256,20 +240,17 @@ class Thread(QThread):
 		util.cast(self.signal_finished).emit()
 
 	@staticmethod
-	def initialize_stage(img_size, triangles):
-		if triangles:
-			triangles = [(tuple(t * 2 for t in triangle[0]), triangle[1]) for triangle in triangles]
-		else:
-			triangles = [Fitter.tri_initialize(img_size) for _ in range(Fitter.TRIANGLE_COUNT)]
+	def initialize_stage(img_size, triangles, layers):
+		for i, triangle in enumerate(triangles):
+			triangles[i] = Fitter.initialize(img_size) if img_size == 16 else (tuple(c * 2 for c in triangle[0]), triangle[1])
+		for i in range(len(layers)):
+			layers[i] = Fitter.tri_layer(img_size, triangles[i])
 
-		layers = [Fitter.tri_layer(img_size, triangle) for i, triangle in enumerate(triangles)]
-		buffers = Fitter.tri_buffer(layers, 0, Fitter.BASE[img_size], layers[0])
+		buffers = Fitter.overlay(layers, 0, Fitter.BASE[img_size], layers[0])
 		img = np.clip(buffers[-1], 0, 255).astype(np.uint8)
 		diff = -1#ssim(self.targets[img_size], img, channel_axis=2)
 
-
-
-		return triangles, img_size, layers, buffers, img, diff
+		return buffers, img, diff
 
 
 if __name__ == "__main__":
