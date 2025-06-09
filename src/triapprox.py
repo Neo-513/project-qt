@@ -12,7 +12,7 @@ import util
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	LOG = "\n\n".join(["iteration:\t    %s", "metric:\t    %s (%s)", "pertubation:\t    %s (coord)  %s (color)"])
+	LOG = "\n\n".join(["iteration:\t    %s", "metric:\t    %s (ssim)", "pertubation:\t    %s (coord)  %s (color)"])
 	PRELOAD = "mona_lisa", "firefox", "darwin"
 
 	def __init__(self):
@@ -27,8 +27,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.button(self.pushButton_fit, self.fit, "../triapprox/fit")
 
 		self.thread = Thread()
-		util.cast(self.thread.signal_reference).connect(lambda img_size: self.display(img_size))
-		util.cast(self.thread.signal_approx).connect(lambda img_size, data: self.display(img_size, data=data))
+		util.cast(self.thread.signal_display).connect(self.thread_display)
 		util.cast(self.thread.signal_log).connect(self.thread_log)
 		util.cast(self.thread.signal_finished).connect(self.thread_finished)
 
@@ -64,7 +63,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.references = self.load(path, preload=False)
 		else:
 			self.references = self.preloads[name]
-		self.display(img_size)
+		self.display(self.label_reference, img_size)
 
 	def fit(self):
 		if not self.references:
@@ -92,23 +91,23 @@ class MyCore(QMainWindow, Ui_MainWindow):
 			self.thread.references = self.references
 			self.thread.start()
 
-	def display(self, img_size, data=None):
-		if data:
-			image = QImage(data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
-			self.label_approx.setPixmap(QPixmap(image))
-		else:
-			image = QImage(self.references[img_size].data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
-			self.label_reference.setPixmap(QPixmap(image))
+	def display(self, canvas, img_size, img_bytes=None):
+		img_data = self.references[img_size].data if img_bytes is None else img_bytes
+		image = QImage(img_data, img_size, img_size, img_size * 3, QImage.Format.Format_RGB888)
+		canvas.setPixmap(QPixmap(image))
 
 	def clocking(self):
 		self.timer.second += 1
 		h, m, s = self.timer.second // 3600, (self.timer.second // 60) % 60, self.timer.second % 60
 		self.pushButton_fit.setText(f"{h:02}:{m:02}:{s:02}")
-		if self.timer.second % 60 == 0:
-			self.plot.addItem(pyqtgraph.InfiniteLine(pos=len(self.values), pen="m"))
+		self.plot.addItem(pyqtgraph.InfiniteLine(pos=len(self.values), pen="m")) if self.timer.second % 60 == 0 else None
 
-	def thread_log(self, iteration, method, metric, perturbation):
-		self.plainTextEdit_log.setPlainText(self.LOG % (iteration + 1, f"{metric:.4f}", method, *perturbation))
+	def thread_display(self, img_size, approx_bytes, refresh_reference):
+		self.display(self.label_reference, img_size) if refresh_reference else None
+		self.display(self.label_approx, img_size, img_bytes=approx_bytes)
+
+	def thread_log(self, iteration, metric, perturbation):
+		self.plainTextEdit_log.setPlainText(self.LOG % (iteration + 1, f"{metric:.4f}", *perturbation))
 		self.indicator.setPos(iteration)
 		self.values.append(metric)
 		self.graph.setData(self.values)
@@ -134,8 +133,13 @@ class Fitter:
 	LAYER = {img_size: np.zeros((img_size, img_size, 4), dtype=np.uint8) for img_size in IMG_SIZE}#float32
 
 	@staticmethod
-	def initialize(img_size):
-		return tuple(np.random.randint(img_size, size=6).tolist()), tuple(np.random.randint(256, size=4).tolist())
+	def initialize():
+		triangles = []
+		for _ in range(Fitter.TRIANGLE_COUNT):
+			coord = tuple(np.random.randint(Fitter.IMG_SIZE[0], size=6).tolist())
+			color = tuple(np.random.randint(256, size=4).tolist())
+			triangles.append((coord, color))
+		return triangles
 
 	@staticmethod
 	def perturb(triangle, prob, perturbation, coord_bounds, color_bounds=(0, 255)):
@@ -162,19 +166,10 @@ class Fitter:
 			buffers.append(mask * tex + (1 - mask) * buffers[-1])
 		return buffers
 
-	@staticmethod
-	def evaluate(reference, approx, method):
-		if method == "mse":
-			return 1 - np.mean((reference.astype(np.float32) / 255 - approx.astype(np.float32) / 255) ** 2)
-		if method == "ssim":
-			return min(max(ssim(reference, approx, channel_axis=2), 0), 1)
-		return 0
-
 
 class Thread(QThread):
-	signal_reference = pyqtSignal(int)
-	signal_approx = pyqtSignal(int, bytes)
-	signal_log = pyqtSignal(int, str, float, tuple)
+	signal_display = pyqtSignal(int, bytes, bool)
+	signal_log = pyqtSignal(int, float, tuple)
 	signal_finished = pyqtSignal()
 
 	def __init__(self):
@@ -187,32 +182,19 @@ class Thread(QThread):
 		probs = np.random.randint(2, size=Fitter.MAX_ITERATION, dtype=np.uint8)
 		tris = np.random.randint(Fitter.TRIANGLE_COUNT, size=Fitter.MAX_ITERATION, dtype=np.uint8)
 
-		img_size = perturbation = buffers = metric = None
-		triangles = [(None, None)] * Fitter.TRIANGLE_COUNT
+		metric = 0
+		img_size = perturbation = buffers = None
+		triangles = Fitter.initialize()
 		texs, masks = [None] * Fitter.TRIANGLE_COUNT, [None] * Fitter.TRIANGLE_COUNT
 
 		for iteration in range(Fitter.MAX_ITERATION):
 			if not self.running:
 				break
 
-			is_first_stage = img_size is None
-			should_upgrade_from_16 = img_size == 16 and metric >= 0.8
-			should_upgrade_from_32 = img_size == 32 and metric >= 0.75
-			should_upgrade_from_64 = img_size == 64 and metric >= 0.65
-
-			if is_first_stage or should_upgrade_from_16 or should_upgrade_from_32 or should_upgrade_from_64:
-				img_size = Fitter.IMG_SIZE[0] if is_first_stage else (img_size * 2)
-				for i, triangle in enumerate(triangles):
-					coord, color = triangle
-					triangles[i] = Fitter.initialize(img_size) if is_first_stage else (tuple(c * 2 for c in coord), color)
-					texs[i], masks[i] = Fitter.rasterize(triangles[i], Fitter.LAYER[img_size])
-
-				buffers = Fitter.blend(texs[1:], masks[1:], texs[0], masks[0], Fitter.BACKGROUND[img_size])
-				approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
-				metric = 0
-
-				util.cast(self.signal_reference).emit(img_size)
-				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
+			stage_result = self.advance_stage(img_size, triangles, texs, masks, metric)
+			if stage_result is not None:
+				img_size, buffers, approx, metric = stage_result
+				util.cast(self.signal_display).emit(img_size, approx.tobytes(), True)
 				continue
 
 			if img_size == 16:
@@ -238,26 +220,53 @@ class Thread(QThread):
 			# 	perturbation = 1, 1
 
 			tri = tris[iteration]
-			background = Fitter.BACKGROUND[img_size] if tri == 0 else buffers[tri - 1]
-			if img_size == 128:
-				method = "ssim"
-			else:
-				method = "mse"
-			method = "ssim"
-
-			new_triangle = Fitter.perturb(triangles[tri], probs[iteration], perturbation, (0, img_size - 1))
-			new_tex, new_mask = Fitter.rasterize(new_triangle, Fitter.LAYER[img_size])
-			new_buffers = Fitter.blend(texs[tri + 1:], masks[tri + 1:], new_tex, new_mask, background)
-			new_approx = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
-			new_metric = Fitter.evaluate(self.references[img_size], new_approx, method)
+			new_triangle, new_tex, new_mask, new_buffers, new_approx, new_metric = self.propose_candidate(
+				img_size=img_size,
+				old_triangle=triangles[tri],
+				prob=probs[iteration],
+				perturbation=perturbation,
+				overlay_texs=texs[tri + 1:],
+				overlay_masks=masks[tri + 1:],
+				background=Fitter.BACKGROUND[img_size] if tri == 0 else buffers[tri - 1],
+				reference=self.references[img_size]
+			)
 
 			if new_metric > metric:
 				triangles[tri], texs[tri], masks[tri] = new_triangle, new_tex, new_mask
-				buffers[tri:], approx, metric = new_buffers, new_approx, new_metric
-				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
-			util.cast(self.signal_log).emit(iteration, method, metric, perturbation)
+				buffers[tri:], metric = new_buffers, new_metric
+				util.cast(self.signal_display).emit(img_size, new_approx.tobytes(), False)
+			util.cast(self.signal_log).emit(iteration, metric, perturbation)
 
 		util.cast(self.signal_finished).emit()
+
+	@staticmethod
+	def advance_stage(img_size, triangles, texs, masks, metric):
+		is_first_stage = img_size is None
+		should_advance_stage = (
+			(img_size == 16 and metric >= 0.8) or
+			(img_size == 32 and metric >= 0.75) or
+			(img_size == 64 and metric >= 0.65)
+		)
+		if not is_first_stage and not should_advance_stage:
+			return
+
+		img_size = (img_size * 2) if should_advance_stage else Fitter.IMG_SIZE[0]
+		scale = 2 if should_advance_stage else 1
+		for i, triangle in enumerate(triangles):
+			triangles[i] = tuple(c * scale for c in triangle[0]), triangle[1]
+			texs[i], masks[i] = Fitter.rasterize(triangles[i], Fitter.LAYER[img_size])
+		buffers = Fitter.blend(texs[1:], masks[1:], texs[0], masks[0], Fitter.BACKGROUND[img_size])
+		approx, metric = np.clip(buffers[-1], 0, 255).astype(np.uint8), 0
+		return img_size, buffers, approx, metric
+
+	@staticmethod
+	def propose_candidate(img_size, old_triangle, prob, perturbation, overlay_texs, overlay_masks, background, reference):
+		triangle = Fitter.perturb(old_triangle, prob, perturbation, (0, img_size - 1))
+		tex, mask = Fitter.rasterize(triangle, Fitter.LAYER[img_size])
+		buffers = Fitter.blend(overlay_texs, overlay_masks, tex, mask, background)
+		approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
+		metric = min(max(ssim(reference, approx, channel_axis=2), 0), 1)
+		return triangle, tex, mask, buffers, approx, metric
 
 
 if __name__ == "__main__":
