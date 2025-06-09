@@ -63,20 +63,11 @@ class Ui_MainWindow(object):
         self.pushButton_fit.setObjectName("pushButton_fit")
         self.horizontalLayout_radio.addWidget(self.pushButton_fit)
         self.verticalLayout_2.addLayout(self.horizontalLayout_radio)
-        self.horizontalLayout_log = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_log.setObjectName("horizontalLayout_log")
-        self.plainTextEdit_log1 = QtWidgets.QPlainTextEdit(parent=self.centralwidget)
-        self.plainTextEdit_log1.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        self.plainTextEdit_log1.setReadOnly(True)
-        self.plainTextEdit_log1.setObjectName("plainTextEdit_log1")
-        self.horizontalLayout_log.addWidget(self.plainTextEdit_log1)
-        self.plainTextEdit_log2 = QtWidgets.QPlainTextEdit(parent=self.centralwidget)
-        self.plainTextEdit_log2.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        self.plainTextEdit_log2.setReadOnly(True)
-        self.plainTextEdit_log2.setPlainText("")
-        self.plainTextEdit_log2.setObjectName("plainTextEdit_log2")
-        self.horizontalLayout_log.addWidget(self.plainTextEdit_log2)
-        self.verticalLayout_2.addLayout(self.horizontalLayout_log)
+        self.plainTextEdit_log = QtWidgets.QPlainTextEdit(parent=self.centralwidget)
+        self.plainTextEdit_log.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.plainTextEdit_log.setReadOnly(True)
+        self.plainTextEdit_log.setObjectName("plainTextEdit_log")
+        self.verticalLayout_2.addWidget(self.plainTextEdit_log)
         self.horizontalLayout.addLayout(self.verticalLayout_2)
         self.verticalLayout.addLayout(self.horizontalLayout)
         self.groupBox_plot = QtWidgets.QGroupBox(parent=self.centralwidget)
@@ -103,8 +94,9 @@ class Ui_MainWindow(object):
         self.radioButton_darwin.setText(_translate("MainWindow", "达尔文"))
         self.radioButton_custom.setText(_translate("MainWindow", "自选"))
         self.pushButton_fit.setText(_translate("MainWindow", "拟合"))
-        self.plainTextEdit_log1.setPlainText(_translate("MainWindow", "step\n"
-"ssim\n"
-"pertubation (coord)\n"
-"pertubation (color)"))
+        self.plainTextEdit_log.setPlainText(_translate("MainWindow", "iteration:\n"
+"\n"
+"metric:\n"
+"\n"
+"pertubation:"))
         self.groupBox_plot.setTitle(_translate("MainWindow", "拟合曲线"))

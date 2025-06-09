@@ -115,37 +115,21 @@
          </layout>
         </item>
         <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_log">
-          <item>
-           <widget class="QPlainTextEdit" name="plainTextEdit_log1">
-            <property name="frameShape">
-             <enum>QFrame::Shape::NoFrame</enum>
-            </property>
-            <property name="readOnly">
-             <bool>true</bool>
-            </property>
-            <property name="plainText">
-             <string>step
-ssim
-pertubation (coord)
-pertubation (color)</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPlainTextEdit" name="plainTextEdit_log2">
-            <property name="frameShape">
-             <enum>QFrame::Shape::NoFrame</enum>
-            </property>
-            <property name="readOnly">
-             <bool>true</bool>
-            </property>
-            <property name="plainText">
-             <string/>
-            </property>
-           </widget>
-          </item>
-         </layout>
+         <widget class="QPlainTextEdit" name="plainTextEdit_log">
+          <property name="frameShape">
+           <enum>QFrame::Shape::NoFrame</enum>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+          <property name="plainText">
+           <string>iteration:
+
+metric:
+
+pertubation:</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>

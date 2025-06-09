@@ -5,13 +5,16 @@ from skimage.metrics import structural_similarity as ssim
 from triapprox_ui import Ui_MainWindow
 import cv2
 import numpy as np
-import random
 import pyqtgraph
+import random
 import sys
 import util
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
+	LOG = "\n\n".join(["iteration:\t    %s", "metric:\t    %s (%s)", "pertubation:\t    %s (coord)  %s (color)"])
+	PRELOAD = "mona_lisa", "firefox", "darwin"
+
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -29,12 +32,12 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		util.cast(self.thread.signal_log).connect(self.thread_log)
 		util.cast(self.thread.signal_finished).connect(self.thread_finished)
 
-		self.plot = util.plot(self.widget, None, x=(0, Fitter.GENERATION), y=(0, 1))
+		self.plot = util.plot(self.widget, None, x=(0, Fitter.MAX_ITERATION), y=(0, 1))
 		self.graph, self.values = None, []
 		self.indicator = pyqtgraph.InfiniteLine(pos=0, pen="g")
 
 		self.timer = util.timer(1000, self.clocking)
-		self.preloads = {name: self.load(name) for name in ["mona_lisa", "firefox", "darwin"]}
+		self.preloads = {name: self.load(name) for name in self.PRELOAD}
 		self.references = None
 		self.radioButton_monalisa.click()
 
@@ -104,10 +107,10 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		if self.timer.second % 60 == 0:
 			self.plot.addItem(pyqtgraph.InfiniteLine(pos=len(self.values), pen="m"))
 
-	def thread_log(self, step, diff, perturbation):
-		self.plainTextEdit_log2.setPlainText(f"{step + 1}\n{diff:.4f}\n{perturbation[0]}\n{perturbation[1]}")
-		self.indicator.setPos(step)
-		self.values.append(diff)
+	def thread_log(self, iteration, method, metric, perturbation):
+		self.plainTextEdit_log.setPlainText(self.LOG % (iteration + 1, f"{metric:.4f}", method, *perturbation))
+		self.indicator.setPos(iteration)
+		self.values.append(metric)
 		self.graph.setData(self.values)
 
 	def thread_finished(self):
@@ -124,48 +127,54 @@ class MyCore(QMainWindow, Ui_MainWindow):
 
 class Fitter:
 	TRIANGLE_COUNT = 50
-	GENERATION = 100000
+	MAX_ITERATION = 100000
 	IMG_SIZE = (16, 32, 64, 128)
 
-	BASE = {img_size: np.zeros((img_size, img_size, 3), dtype=np.uint8) for img_size in IMG_SIZE}
-	PROB = np.random.randint(2, size=GENERATION, dtype=np.uint8)
-	TRI = np.random.randint(TRIANGLE_COUNT, size=GENERATION, dtype=np.uint8)
+	BACKGROUND = {img_size: np.zeros((img_size, img_size, 3), dtype=np.uint8) for img_size in IMG_SIZE}
+	LAYER = {img_size: np.zeros((img_size, img_size, 4), dtype=np.uint8) for img_size in IMG_SIZE}#float32
 
 	@staticmethod
 	def initialize(img_size):
-		return tuple(np.random.randint(img_size, size=6)), tuple(np.random.randint(256, size=4))
+		return tuple(np.random.randint(img_size, size=6).tolist()), tuple(np.random.randint(256, size=4).tolist())
 
 	@staticmethod
-	def perturb(img_size, triangle, prob, perturbation):
+	def perturb(triangle, prob, perturbation, coord_bounds, color_bounds=(0, 255)):
 		coord, color = triangle
 		if prob:
-			coord = tuple(c + random.randint(-perturbation[0], perturbation[0]) for c in coord)
+			coord = [c + random.randint(-perturbation[0], perturbation[0]) for c in coord]
 		else:
-			color = tuple(c + random.randint(-perturbation[1], perturbation[1]) for c in color)
-		return np.clip(coord, 0, img_size - 1), np.clip(color, 0, 255)
+			color = [c + random.randint(-perturbation[1], perturbation[1]) for c in color]
+		coord = tuple(np.clip(coord, coord_bounds[0], coord_bounds[1]).tolist())
+		color = tuple(np.clip(color, color_bounds[0], color_bounds[1]).tolist())
+		return coord, color
 
 	@staticmethod
-	def overlay(img_size, triangle):
-		layer_rgba = np.zeros((img_size, img_size, 4), dtype=np.uint8)
+	def rasterize(triangle, layer):
+		layer.fill(0)
 		(x1, y1, x2, y2, x3, y3), (r, g, b, a) = triangle
-		pts = [np.array([(x1, y1), (x2, y2), (x3, y3)], dtype=int)]
-		color = int(b), int(g), int(r), int(a)
-		cv2.fillPoly(layer_rgba, pts, color)
-		return layer_rgba[:, :, :-1], layer_rgba[:, :, -1:] / 255
+		cv2.fillPoly(layer, [np.array([(x1, y1), (x2, y2), (x3, y3)])], [b, g, r, a])
+		return layer[..., :-1].copy(), layer[..., -1:].copy() / 255
 
 	@staticmethod
-	def blend(layers, alphas, tri, background, layer, alpha):
-		buffers = [alpha * layer + (1 - alpha) * background]
-		for i in range(tri + 1, len(layers)):
-			layer, alpha = layers[i], alphas[i]
-			buffers.append(alpha * layer + (1 - alpha) * buffers[-1])
+	def blend(overlay_texs, overlay_masks, new_tex, new_mask, background):
+		buffers = [new_mask * new_tex + (1 - new_mask) * background]
+		for tex, mask in zip(overlay_texs, overlay_masks):
+			buffers.append(mask * tex + (1 - mask) * buffers[-1])
 		return buffers
+
+	@staticmethod
+	def evaluate(reference, approx, method):
+		if method == "mse":
+			return 1 - np.mean((reference.astype(np.float32) / 255 - approx.astype(np.float32) / 255) ** 2)
+		if method == "ssim":
+			return min(max(ssim(reference, approx, channel_axis=2), 0), 1)
+		return 0
 
 
 class Thread(QThread):
 	signal_reference = pyqtSignal(int)
 	signal_approx = pyqtSignal(int, bytes)
-	signal_log = pyqtSignal(int, float, tuple)
+	signal_log = pyqtSignal(int, str, float, tuple)
 	signal_finished = pyqtSignal()
 
 	def __init__(self):
@@ -174,20 +183,34 @@ class Thread(QThread):
 		self.references = None
 
 	def run(self):
-		img_size = perturbation = None
-		buffers = approx = diff = None
-		triangles = [None] * Fitter.TRIANGLE_COUNT
-		layers = [None] * Fitter.TRIANGLE_COUNT
-		alphas = [None] * Fitter.TRIANGLE_COUNT
-
 		self.running = True
-		for step in range(Fitter.GENERATION):
+		probs = np.random.randint(2, size=Fitter.MAX_ITERATION, dtype=np.uint8)
+		tris = np.random.randint(Fitter.TRIANGLE_COUNT, size=Fitter.MAX_ITERATION, dtype=np.uint8)
+
+		img_size = perturbation = buffers = metric = None
+		triangles = [(None, None)] * Fitter.TRIANGLE_COUNT
+		texs, masks = [None] * Fitter.TRIANGLE_COUNT, [None] * Fitter.TRIANGLE_COUNT
+
+		for iteration in range(Fitter.MAX_ITERATION):
 			if not self.running:
 				break
 
-			if img_size is None or (img_size == 16 and diff >= 0.8) or (img_size == 32 and diff >= 0.75) or (img_size == 64 and diff >= 0.65):
-				img_size = (img_size * 2) if img_size else Fitter.IMG_SIZE[0]
-				buffers, approx, diff = self.initialize_stage(img_size, triangles, layers, alphas)
+			is_first_stage = img_size is None
+			should_upgrade_from_16 = img_size == 16 and metric >= 0.8
+			should_upgrade_from_32 = img_size == 32 and metric >= 0.75
+			should_upgrade_from_64 = img_size == 64 and metric >= 0.65
+
+			if is_first_stage or should_upgrade_from_16 or should_upgrade_from_32 or should_upgrade_from_64:
+				img_size = Fitter.IMG_SIZE[0] if is_first_stage else (img_size * 2)
+				for i, triangle in enumerate(triangles):
+					coord, color = triangle
+					triangles[i] = Fitter.initialize(img_size) if is_first_stage else (tuple(c * 2 for c in coord), color)
+					texs[i], masks[i] = Fitter.rasterize(triangles[i], Fitter.LAYER[img_size])
+
+				buffers = Fitter.blend(texs[1:], masks[1:], texs[0], masks[0], Fitter.BACKGROUND[img_size])
+				approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
+				metric = 0
+
 				util.cast(self.signal_reference).emit(img_size)
 				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
 				continue
@@ -200,48 +223,41 @@ class Thread(QThread):
 				perturbation = 6, 25
 			if img_size == 128:
 				perturbation = 4, 4
-			if img_size == 128 and diff >= 0.6:
+			if img_size == 128 and metric >= 0.5:
+				break
+			if img_size == 128 and metric >= 0.6:
 				perturbation = 3, 3
 				break
-			if img_size == 128 and diff >= 0.75:
+			if img_size == 128 and metric >= 0.75:
 				break
-			# if img_size == 128 and diff >= 0.575:
+			# if img_size == 128 and metric >= 0.575:
 			# 	perturbation = 3, 3
-			# if img_size == 128 and diff >= 0.625:
+			# if img_size == 128 and metric >= 0.625:
 			# 	perturbation = 2, 2
-			# if img_size == 128 and diff >= 0.675:
+			# if img_size == 128 and metric >= 0.675:
 			# 	perturbation = 1, 1
 
-			tri = Fitter.TRI[step]
-			new_triangle = Fitter.perturb(img_size, triangles[tri], Fitter.PROB[step], perturbation)
-			new_layer, new_alpha = Fitter.overlay(img_size, new_triangle)
-			new_buffers = Fitter.blend(layers, alphas, tri, (Fitter.BASE[img_size] if tri == 0 else buffers[tri - 1]), new_layer, new_alpha)
+			tri = tris[iteration]
+			background = Fitter.BACKGROUND[img_size] if tri == 0 else buffers[tri - 1]
+			if img_size == 128:
+				method = "ssim"
+			else:
+				method = "mse"
+			method = "ssim"
+
+			new_triangle = Fitter.perturb(triangles[tri], probs[iteration], perturbation, (0, img_size - 1))
+			new_tex, new_mask = Fitter.rasterize(new_triangle, Fitter.LAYER[img_size])
+			new_buffers = Fitter.blend(texs[tri + 1:], masks[tri + 1:], new_tex, new_mask, background)
 			new_approx = np.clip(new_buffers[-1], 0, 255).astype(np.uint8)
-			new_diff = ssim(self.references[img_size], new_approx, channel_axis=2)
+			new_metric = Fitter.evaluate(self.references[img_size], new_approx, method)
 
-			if new_diff > diff:
-				diff = new_diff
-				approx = new_approx
-				triangles[tri] = new_triangle
-				layers[tri] = new_layer
-				alphas[tri] = new_alpha
-				buffers[tri:] = new_buffers
+			if new_metric > metric:
+				triangles[tri], texs[tri], masks[tri] = new_triangle, new_tex, new_mask
+				buffers[tri:], approx, metric = new_buffers, new_approx, new_metric
+				util.cast(self.signal_approx).emit(img_size, approx.tobytes())
+			util.cast(self.signal_log).emit(iteration, method, metric, perturbation)
 
-			util.cast(self.signal_log).emit(step, diff, perturbation)
-			util.cast(self.signal_approx).emit(img_size, approx.tobytes())
 		util.cast(self.signal_finished).emit()
-
-	@staticmethod
-	def initialize_stage(img_size, triangles, layers, alphas):
-		for i, triangle in enumerate(triangles):
-			triangles[i] = Fitter.initialize(img_size) if img_size == 16 else (tuple(c * 2 for c in triangle[0]), triangle[1])
-		for i in range(len(triangles)):
-			layers[i], alphas[i] = Fitter.overlay(img_size, triangles[i])
-
-		buffers = Fitter.blend(layers, alphas, 0, Fitter.BASE[img_size], layers[0], alphas[0])
-		approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
-		diff = -1
-		return buffers, approx, diff
 
 
 if __name__ == "__main__":
