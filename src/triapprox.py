@@ -12,9 +12,6 @@ import util
 
 
 class MyCore(QMainWindow, Ui_MainWindow):
-	LOG = "\n\n".join(["iteration:\t    %s", "metric:\t    %s (ssim)", "pertubation:\t    %s (coord)  %s (color)"])
-	PRELOAD = "mona_lisa", "firefox", "darwin"
-
 	def __init__(self):
 		super().__init__()
 		self.setupUi(self)
@@ -36,7 +33,7 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.indicator = pyqtgraph.InfiniteLine(pos=0, pen="g")
 
 		self.timer = util.timer(1000, self.clocking)
-		self.preloads = {name: self.load(name) for name in self.PRELOAD}
+		self.preloads = {name: self.load(name) for name in ("mona_lisa", "firefox", "darwin")}
 		self.references = None
 		self.radioButton_monalisa.click()
 
@@ -102,14 +99,20 @@ class MyCore(QMainWindow, Ui_MainWindow):
 		self.pushButton_fit.setText(f"{h:02}:{m:02}:{s:02}")
 		self.plot.addItem(pyqtgraph.InfiniteLine(pos=len(self.values), pen="m")) if self.timer.second % 60 == 0 else None
 
-	def thread_display(self, img_size, approx_bytes, refresh_reference):
+	def thread_display(self, approx_bytes, refresh_reference):
+		img_size = self.thread.img_size
 		self.display(self.label_reference, img_size) if refresh_reference else None
 		self.display(self.label_approx, img_size, img_bytes=approx_bytes)
 
-	def thread_log(self, iteration, metric, perturbation):
-		self.plainTextEdit_log.setPlainText(self.LOG % (iteration + 1, f"{metric:.4f}", *perturbation))
+	def thread_log(self, iteration):
+		self.plainTextEdit_log.setPlainText(
+			f"iteration:\t    {iteration + 1}\n\n"
+			f"metric:\t    {self.thread.metric:.4f} (ssim)\n\n"
+			f"pertubation:\t    {self.thread.perturbation[0]} (coord)  {self.thread.perturbation[1]} (color)"
+		)
+
 		self.indicator.setPos(iteration)
-		self.values.append(metric)
+		self.values.append(self.thread.metric)
 		self.graph.setData(self.values)
 
 	def thread_finished(self):
@@ -127,19 +130,15 @@ class MyCore(QMainWindow, Ui_MainWindow):
 class Fitter:
 	TRIANGLE_COUNT = 50
 	MAX_ITERATION = 100000
-	IMG_SIZE = (16, 32, 64, 128)
-
-	BACKGROUND = {img_size: np.zeros((img_size, img_size, 3), dtype=np.uint8) for img_size in IMG_SIZE}
-	LAYER = {img_size: np.zeros((img_size, img_size, 4), dtype=np.uint8) for img_size in IMG_SIZE}#float32
+	SUPPORTED_SIZES = 16, 32, 64, 128
+	BACKGROUND = {img_size: np.zeros((img_size, img_size, 3), dtype=np.uint8) for img_size in SUPPORTED_SIZES}#float32
 
 	@staticmethod
-	def initialize():
-		triangles = []
-		for _ in range(Fitter.TRIANGLE_COUNT):
-			coord = tuple(np.random.randint(Fitter.IMG_SIZE[0], size=6).tolist())
+	def initialize(triangles):
+		for i in range(len(triangles)):
+			coord = tuple(np.random.randint(Fitter.SUPPORTED_SIZES[0], size=6).tolist())
 			color = tuple(np.random.randint(256, size=4).tolist())
-			triangles.append((coord, color))
-		return triangles
+			triangles[i] = coord, color
 
 	@staticmethod
 	def perturb(triangle, prob, perturbation, coord_bounds, color_bounds=(0, 255)):
@@ -160,113 +159,123 @@ class Fitter:
 		return layer[..., :-1].copy(), layer[..., -1:].copy() / 255
 
 	@staticmethod
-	def blend(overlay_texs, overlay_masks, new_tex, new_mask, background):
-		buffers = [new_mask * new_tex + (1 - new_mask) * background]
-		for tex, mask in zip(overlay_texs, overlay_masks):
-			buffers.append(mask * tex + (1 - mask) * buffers[-1])
-		return buffers
+	def blend(tri, texs, masks, composites, new_tex, new_mask, background):
+		composites[tri] = new_mask * new_tex + (1 - new_mask) * background
+		for i in range(tri + 1, len(composites)):
+			tex, mask = texs[i], masks[i]
+			composites[i] = mask * tex + (1 - mask) * composites[i - 1]
 
 
 class Thread(QThread):
-	signal_display = pyqtSignal(int, bytes, bool)
-	signal_log = pyqtSignal(int, float, tuple)
+	signal_display = pyqtSignal(bytes, bool)
+	signal_log = pyqtSignal(int)
 	signal_finished = pyqtSignal()
 
 	def __init__(self):
 		super().__init__()
-		self.running = False
 		self.references = None
+		self.running = False
+
+		self.img_size = self.metric = self.perturbation = None
+		self.triangles = [(None, None)] * Fitter.TRIANGLE_COUNT
+		self.texs = [None] * Fitter.TRIANGLE_COUNT
+		self.masks = [None] * Fitter.TRIANGLE_COUNT
+		self.composites = [None] * Fitter.TRIANGLE_COUNT
+
+		self.layer_buffer = {img_size: np.zeros((img_size, img_size, 4), dtype=np.uint8) for img_size in Fitter.SUPPORTED_SIZES}
+		self.composites_buffer = [None] * Fitter.TRIANGLE_COUNT
 
 	def run(self):
-		self.running = True
+		self.img_size = self.metric = 0
+		self.perturbation = 0, 0
+		Fitter.initialize(self.triangles)
+
 		probs = np.random.randint(2, size=Fitter.MAX_ITERATION, dtype=np.uint8)
 		tris = np.random.randint(Fitter.TRIANGLE_COUNT, size=Fitter.MAX_ITERATION, dtype=np.uint8)
 
-		metric = 0
-		img_size = perturbation = buffers = None
-		triangles = Fitter.initialize()
-		texs, masks = [None] * Fitter.TRIANGLE_COUNT, [None] * Fitter.TRIANGLE_COUNT
-
+		self.running = True
 		for iteration in range(Fitter.MAX_ITERATION):
 			if not self.running:
 				break
 
-			stage_result = self.advance_stage(img_size, triangles, texs, masks, metric)
-			if stage_result is not None:
-				img_size, buffers, approx, metric = stage_result
-				util.cast(self.signal_display).emit(img_size, approx.tobytes(), True)
+			approx = self.advance_stage()
+			if approx is not None:
+				util.cast(self.signal_display).emit(approx.tobytes(), True)
 				continue
 
-			if img_size == 16:
-				perturbation = 10, 35
-			if img_size == 32:
-				perturbation = 8, 30
-			if img_size == 64:
-				perturbation = 6, 25
-			if img_size == 128:
-				perturbation = 4, 4
-			if img_size == 128 and metric >= 0.5:
+			if self.img_size == 16:
+				self.perturbation = 10, 35
+			if self.img_size == 32:
+				self.perturbation = 8, 30
+			if self.img_size == 64:
+				self.perturbation = 6, 25
+			if self.img_size == 128:
+				self.perturbation = 4, 4
+			if self.img_size == 128 and self.metric >= 0.55:
 				break
-			if img_size == 128 and metric >= 0.6:
-				perturbation = 3, 3
+			if self.img_size == 128 and self.metric >= 0.6:
+				self.perturbation = 3, 3
 				break
-			if img_size == 128 and metric >= 0.75:
+			if self.img_size == 128 and self.metric >= 0.75:
 				break
-			# if img_size == 128 and metric >= 0.575:
-			# 	perturbation = 3, 3
-			# if img_size == 128 and metric >= 0.625:
-			# 	perturbation = 2, 2
-			# if img_size == 128 and metric >= 0.675:
-			# 	perturbation = 1, 1
+			# if self.img_size == 128 and self.metric >= 0.575:
+			# 	self.perturbation = 3, 3
+			# if self.img_size == 128 and self.metric >= 0.625:
+			# 	self.perturbation = 2, 2
+			# if self.img_size == 128 and self.metric >= 0.675:
+			# 	self.perturbation = 1, 1
 
-			tri = tris[iteration]
-			new_triangle, new_tex, new_mask, new_buffers, new_approx, new_metric = self.propose_candidate(
-				img_size=img_size,
-				old_triangle=triangles[tri],
-				prob=probs[iteration],
-				perturbation=perturbation,
-				overlay_texs=texs[tri + 1:],
-				overlay_masks=masks[tri + 1:],
-				background=Fitter.BACKGROUND[img_size] if tri == 0 else buffers[tri - 1],
-				reference=self.references[img_size]
-			)
-
-			if new_metric > metric:
-				triangles[tri], texs[tri], masks[tri] = new_triangle, new_tex, new_mask
-				buffers[tri:], metric = new_buffers, new_metric
-				util.cast(self.signal_display).emit(img_size, new_approx.tobytes(), False)
-			util.cast(self.signal_log).emit(iteration, metric, perturbation)
+			candidate = self.propose_candidate(tris[iteration], probs[iteration])
+			if candidate[-1] > self.metric:
+				self.update_candidate(tris[iteration], candidate)
+			util.cast(self.signal_log).emit(iteration)
 
 		util.cast(self.signal_finished).emit()
 
-	@staticmethod
-	def advance_stage(img_size, triangles, texs, masks, metric):
-		is_first_stage = img_size is None
+	def advance_stage(self):
+		is_first_stage = self.img_size == 0
 		should_advance_stage = (
-			(img_size == 16 and metric >= 0.8) or
-			(img_size == 32 and metric >= 0.75) or
-			(img_size == 64 and metric >= 0.65)
+			(self.img_size == 16 and self.metric >= 0.8) or
+			(self.img_size == 32 and self.metric >= 0.75) or
+			(self.img_size == 64 and self.metric >= 0.65)
 		)
 		if not is_first_stage and not should_advance_stage:
 			return
 
-		img_size = (img_size * 2) if should_advance_stage else Fitter.IMG_SIZE[0]
+		self.img_size = (self.img_size * 2) if should_advance_stage else Fitter.SUPPORTED_SIZES[0]
+		# self.metric = 0
 		scale = 2 if should_advance_stage else 1
-		for i, triangle in enumerate(triangles):
-			triangles[i] = tuple(c * scale for c in triangle[0]), triangle[1]
-			texs[i], masks[i] = Fitter.rasterize(triangles[i], Fitter.LAYER[img_size])
-		buffers = Fitter.blend(texs[1:], masks[1:], texs[0], masks[0], Fitter.BACKGROUND[img_size])
-		approx, metric = np.clip(buffers[-1], 0, 255).astype(np.uint8), 0
-		return img_size, buffers, approx, metric
 
-	@staticmethod
-	def propose_candidate(img_size, old_triangle, prob, perturbation, overlay_texs, overlay_masks, background, reference):
-		triangle = Fitter.perturb(old_triangle, prob, perturbation, (0, img_size - 1))
-		tex, mask = Fitter.rasterize(triangle, Fitter.LAYER[img_size])
-		buffers = Fitter.blend(overlay_texs, overlay_masks, tex, mask, background)
-		approx = np.clip(buffers[-1], 0, 255).astype(np.uint8)
-		metric = min(max(ssim(reference, approx, channel_axis=2), 0), 1)
-		return triangle, tex, mask, buffers, approx, metric
+		for i, triangle in enumerate(self.triangles):
+			self.triangles[i] = tuple(c * scale for c in triangle[0]), triangle[1]
+			self.texs[i], self.masks[i] = Fitter.rasterize(self.triangles[i], self.layer_buffer[self.img_size])
+
+		Fitter.blend(0, self.texs, self.masks, self.composites, self.texs[0], self.masks[0], Fitter.BACKGROUND[self.img_size])
+		for i, composite in enumerate(self.composites):
+			self.composites_buffer[i] = composite.copy()
+		approx = np.clip(self.composites[-1], 0, 255).astype(np.uint8)
+		self.metric = min(max(ssim(self.references[self.img_size], approx, channel_axis=2), 0), 1)
+		return approx
+
+	def propose_candidate(self, tri, prob):
+		background = Fitter.BACKGROUND[self.img_size] if tri == 0 else self.composites[tri - 1]
+		triangle = Fitter.perturb(self.triangles[tri], prob, self.perturbation, (0, self.img_size - 1))
+		tex, mask = Fitter.rasterize(triangle, self.layer_buffer[self.img_size])
+		Fitter.blend(tri, self.texs, self.masks, self.composites_buffer, tex, mask, background)
+		approx = np.clip(self.composites_buffer[-1], 0, 255).astype(np.uint8)
+		metric = min(max(ssim(self.references[self.img_size], approx, channel_axis=2), 0), 1)
+		return triangle, tex, mask, approx, metric
+
+	def update_candidate(self, tri, candidate):
+		new_triangle, new_tex, new_mask, new_approx, new_metric = candidate
+		self.triangles[tri] = new_triangle
+		self.texs[tri] = new_tex
+		self.masks[tri] = new_mask
+		# self.composites[tri:] = self.composites_buffer.copy()
+		for i in range(tri, len(self.composites)):
+			self.composites[i] = self.composites_buffer[i].copy()
+		self.metric = new_metric
+		util.cast(self.signal_display).emit(new_approx.tobytes(), False)
 
 
 if __name__ == "__main__":
